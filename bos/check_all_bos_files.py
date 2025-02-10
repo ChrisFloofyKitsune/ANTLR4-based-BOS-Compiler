@@ -9,7 +9,7 @@ from antlr4 import CommonTokenStream, InputStream
 from bos.gen.BosLexer import BosLexer
 from bos.gen.BosParser import BosParser
 
-
+# yoinked from https://github.com/beyond-all-reason/BARScriptCompiler/blob/main/bos2cob_py3.py#L1455
 class MyPreprocessor(pcpp.Preprocessor):
     def __init__(self, input_string):
         super().__init__()
