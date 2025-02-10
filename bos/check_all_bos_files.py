@@ -38,6 +38,7 @@ class MyPreprocessor(pcpp.Preprocessor):
 def main():
     examples_dir = Path('./example_files')
     preprocessed_dir = Path('./preprocessed')
+    preprocessed_dir.mkdir(exist_ok=True)
 
     for root, dirs, files in os.walk(examples_dir):
         root = Path(root)
