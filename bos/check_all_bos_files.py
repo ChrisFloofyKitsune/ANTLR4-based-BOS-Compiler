@@ -3,20 +3,16 @@ import sys
 from io import StringIO
 from pathlib import Path
 
-
-from antlr4 import CommonTokenStream, FileStream
-from antlr4.InputStream import InputStream
+import pcpp
+from antlr4 import CommonTokenStream, InputStream
 
 from bos.gen.BosLexer import BosLexer
 from bos.gen.BosParser import BosParser
 
-import pcpp
-
-
 
 class MyPreprocessor(pcpp.Preprocessor):
     def __init__(self, input_string):
-        super(MyPreprocessor, self).__init__()
+        super().__init__()
         # Use StringIO to simulate file input and output
         self.line_directive = None
         self.input = input_string
@@ -39,8 +35,6 @@ class MyPreprocessor(pcpp.Preprocessor):
         return super().on_error(file, line, msg)()
 
 
-
-
 def main():
     examples_dir = Path('./example_files')
     preprocessed_dir = Path('./preprocessed')
@@ -49,12 +43,13 @@ def main():
         root = Path(root)
         bos_files = [f for f in files if f.endswith('.bos')]
         print(
-f"""
+            f"""
 ______________________________________________
 {root}
 ----------------------------------------------
 """,
-            flush=True)
+            flush=True
+        )
         for bos_filepath in bos_files:
             try:
                 filepath = root.joinpath(bos_filepath)
@@ -62,25 +57,27 @@ ______________________________________________
                     content = bos_file.read()
 
                 print(f'======== PARSING: {filepath} =============', flush=True)
-                
+
                 preproc = MyPreprocessor(content)
                 preproc.add_path(examples_dir)
                 preproc.add_path(os.path.dirname(os.path.abspath(filepath)))
                 content = preproc.preprocess()
-                
-                with open(preprocessed_dir.joinpath(bos_filepath).with_suffix('.pcpp').resolve(), 'w', encoding='utf-8') as pcpp_file:
+
+                with open(
+                    preprocessed_dir.joinpath(bos_filepath).with_suffix('.pcpp').resolve(),
+                    'w',
+                    encoding='utf-8'
+                ) as pcpp_file:
                     pcpp_file.write(content)
-                
-                test_parse_bos_file(filepath, content)
+
+                parse_bos_file(content)
             except BaseException as err:
                 print(f'Error parsing {bos_filepath}')
                 print(err)
                 continue
 
-    pass
 
-
-def test_parse_bos_file(path, data: str):
+def parse_bos_file(data: str):
 
     input_stream = InputStream(data)
     lexer = BosLexer(input_stream)

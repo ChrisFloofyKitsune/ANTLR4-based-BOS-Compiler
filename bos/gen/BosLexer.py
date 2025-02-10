@@ -1,4 +1,4 @@
-# Generated from E:/antlr_domain_specifc_lang_stuff/book/part2/bos/BosLexer.g4 by ANTLR 4.13.2
+# Generated from E:/bar_dev/antlr4_based_bos_parser/bos/BosLexer.g4 by ANTLR 4.13.2
 from antlr4 import *
 from io import StringIO
 import sys
@@ -325,7 +325,7 @@ class BosLexer(Lexer):
     L_SQUARE_BRACKET = 6
     R_SQUARE_BRACKET = 7
     SEMICOLON = 8
-    ASSIGN = 9
+    EQUAL_ASSIGN = 9
     OP_ADD = 10
     OP_MINUS = 11
     OP_MULT = 12
@@ -422,7 +422,7 @@ class BosLexer(Lexer):
 
     symbolicNames = [ "<INVALID>",
             "COMMA", "L_PAREN", "R_PAREN", "L_BRACE", "R_BRACE", "L_SQUARE_BRACKET", 
-            "R_SQUARE_BRACKET", "SEMICOLON", "ASSIGN", "OP_ADD", "OP_MINUS", 
+            "R_SQUARE_BRACKET", "SEMICOLON", "EQUAL_ASSIGN", "OP_ADD", "OP_MINUS", 
             "OP_MULT", "OP_DIV", "OP_MOD", "OP_INCREMENT", "OP_DECREMENT", 
             "BITWISE_AND", "BITWISE_OR", "BITWISE_XOR", "COMP_EQUAL", "COMP_NOT_EQUAL", 
             "COMP_LESS", "COMP_LESS_EQUAL", "COMP_GREATER", "COMP_GREATER_EQUAL", 
@@ -439,16 +439,16 @@ class BosLexer(Lexer):
             "BLOCK_COMMENT", "WHITESPACE", "NEWLINE", "ID", "STRING" ]
 
     ruleNames = [ "COMMA", "L_PAREN", "R_PAREN", "L_BRACE", "R_BRACE", "L_SQUARE_BRACKET", 
-                  "R_SQUARE_BRACKET", "SEMICOLON", "ASSIGN", "OP_ADD", "OP_MINUS", 
-                  "OP_MULT", "OP_DIV", "OP_MOD", "OP_INCREMENT", "OP_DECREMENT", 
-                  "BITWISE_AND", "BITWISE_OR", "BITWISE_XOR", "COMP_EQUAL", 
-                  "COMP_NOT_EQUAL", "COMP_LESS", "COMP_LESS_EQUAL", "COMP_GREATER", 
-                  "COMP_GREATER_EQUAL", "LOGICAL_AND", "LOGICAL_OR", "LOGICAL_NOT", 
-                  "LOGICAL_XOR", "IF", "ELSE", "WHILE", "FOR", "STATIC_VAR", 
-                  "VAR", "PIECE", "TURN", "AROUND", "MOVE", "ALONG", "TO", 
-                  "FROM", "NOW", "SPEED", "SPIN", "ACCELERATE", "STOP_SPIN", 
-                  "DECELERATE", "WAIT_FOR_TURN", "WAIT_FOR_MOVE", "SET", 
-                  "GET", "UNKNOWN_UNIT_VALUE", "CALL_SCRIPT", "START_SCRIPT", 
+                  "R_SQUARE_BRACKET", "SEMICOLON", "EQUAL_ASSIGN", "OP_ADD", 
+                  "OP_MINUS", "OP_MULT", "OP_DIV", "OP_MOD", "OP_INCREMENT", 
+                  "OP_DECREMENT", "BITWISE_AND", "BITWISE_OR", "BITWISE_XOR", 
+                  "COMP_EQUAL", "COMP_NOT_EQUAL", "COMP_LESS", "COMP_LESS_EQUAL", 
+                  "COMP_GREATER", "COMP_GREATER_EQUAL", "LOGICAL_AND", "LOGICAL_OR", 
+                  "LOGICAL_NOT", "LOGICAL_XOR", "IF", "ELSE", "WHILE", "FOR", 
+                  "STATIC_VAR", "VAR", "PIECE", "TURN", "AROUND", "MOVE", 
+                  "ALONG", "TO", "FROM", "NOW", "SPEED", "SPIN", "ACCELERATE", 
+                  "STOP_SPIN", "DECELERATE", "WAIT_FOR_TURN", "WAIT_FOR_MOVE", 
+                  "SET", "GET", "UNKNOWN_UNIT_VALUE", "CALL_SCRIPT", "START_SCRIPT", 
                   "EMIT_SFX", "SLEEP", "HIDE", "SHOW", "EXPLODE", "TYPE", 
                   "SIGNAL", "SET_SIGNAL_MASK", "ATTACH_UNIT", "DROP_UNIT", 
                   "RETURN", "CACHE", "DONT_CACHE", "DONT_SHADOW", "DONT_SHADE", 

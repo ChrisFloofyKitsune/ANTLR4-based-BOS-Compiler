@@ -1,4 +1,4 @@
-# Generated from E:/antlr_domain_specifc_lang_stuff/book/part2/bos/BosParser.g4 by ANTLR 4.13.2
+# Generated from E:/bar_dev/antlr4_based_bos_parser/bos/BosParser.g4 by ANTLR 4.13.2
 from antlr4 import *
 if "." in __name__:
     from .BosParser import BosParser
@@ -80,24 +80,6 @@ class BosParserListener(ParseTreeListener):
         pass
 
 
-    # Enter a parse tree produced by BosParser#argumentList.
-    def enterArgumentList(self, ctx:BosParser.ArgumentListContext):
-        pass
-
-    # Exit a parse tree produced by BosParser#argumentList.
-    def exitArgumentList(self, ctx:BosParser.ArgumentListContext):
-        pass
-
-
-    # Enter a parse tree produced by BosParser#arguments.
-    def enterArguments(self, ctx:BosParser.ArgumentsContext):
-        pass
-
-    # Exit a parse tree produced by BosParser#arguments.
-    def exitArguments(self, ctx:BosParser.ArgumentsContext):
-        pass
-
-
     # Enter a parse tree produced by BosParser#argName.
     def enterArgName(self, ctx:BosParser.ArgNameContext):
         pass
@@ -125,30 +107,12 @@ class BosParserListener(ParseTreeListener):
         pass
 
 
-    # Enter a parse tree produced by BosParser#assignStatement.
-    def enterAssignStatement(self, ctx:BosParser.AssignStatementContext):
+    # Enter a parse tree produced by BosParser#varStatement.
+    def enterVarStatement(self, ctx:BosParser.VarStatementContext):
         pass
 
-    # Exit a parse tree produced by BosParser#assignStatement.
-    def exitAssignStatement(self, ctx:BosParser.AssignStatementContext):
-        pass
-
-
-    # Enter a parse tree produced by BosParser#incStatement.
-    def enterIncStatement(self, ctx:BosParser.IncStatementContext):
-        pass
-
-    # Exit a parse tree produced by BosParser#incStatement.
-    def exitIncStatement(self, ctx:BosParser.IncStatementContext):
-        pass
-
-
-    # Enter a parse tree produced by BosParser#decStatement.
-    def enterDecStatement(self, ctx:BosParser.DecStatementContext):
-        pass
-
-    # Exit a parse tree produced by BosParser#decStatement.
-    def exitDecStatement(self, ctx:BosParser.DecStatementContext):
+    # Exit a parse tree produced by BosParser#varStatement.
+    def exitVarStatement(self, ctx:BosParser.VarStatementContext):
         pass
 
 
@@ -188,6 +152,33 @@ class BosParserListener(ParseTreeListener):
         pass
 
 
+    # Enter a parse tree produced by BosParser#assignStatement.
+    def enterAssignStatement(self, ctx:BosParser.AssignStatementContext):
+        pass
+
+    # Exit a parse tree produced by BosParser#assignStatement.
+    def exitAssignStatement(self, ctx:BosParser.AssignStatementContext):
+        pass
+
+
+    # Enter a parse tree produced by BosParser#incStatement.
+    def enterIncStatement(self, ctx:BosParser.IncStatementContext):
+        pass
+
+    # Exit a parse tree produced by BosParser#incStatement.
+    def exitIncStatement(self, ctx:BosParser.IncStatementContext):
+        pass
+
+
+    # Enter a parse tree produced by BosParser#decStatement.
+    def enterDecStatement(self, ctx:BosParser.DecStatementContext):
+        pass
+
+    # Exit a parse tree produced by BosParser#decStatement.
+    def exitDecStatement(self, ctx:BosParser.DecStatementContext):
+        pass
+
+
     # Enter a parse tree produced by BosParser#keywordStatement.
     def enterKeywordStatement(self, ctx:BosParser.KeywordStatementContext):
         pass
@@ -212,15 +203,6 @@ class BosParserListener(ParseTreeListener):
 
     # Exit a parse tree produced by BosParser#sleepStatement.
     def exitSleepStatement(self, ctx:BosParser.SleepStatementContext):
-        pass
-
-
-    # Enter a parse tree produced by BosParser#varStatement.
-    def enterVarStatement(self, ctx:BosParser.VarStatementContext):
-        pass
-
-    # Exit a parse tree produced by BosParser#varStatement.
-    def exitVarStatement(self, ctx:BosParser.VarStatementContext):
         pass
 
 
@@ -476,15 +458,6 @@ class BosParserListener(ParseTreeListener):
         pass
 
 
-    # Enter a parse tree produced by BosParser#expressions.
-    def enterExpressions(self, ctx:BosParser.ExpressionsContext):
-        pass
-
-    # Exit a parse tree produced by BosParser#expressions.
-    def exitExpressions(self, ctx:BosParser.ExpressionsContext):
-        pass
-
-
     # Enter a parse tree produced by BosParser#getTerm.
     def enterGetTerm(self, ctx:BosParser.GetTermContext):
         pass
@@ -512,15 +485,6 @@ class BosParserListener(ParseTreeListener):
         pass
 
 
-    # Enter a parse tree produced by BosParser#opterm.
-    def enterOpterm(self, ctx:BosParser.OptermContext):
-        pass
-
-    # Exit a parse tree produced by BosParser#opterm.
-    def exitOpterm(self, ctx:BosParser.OptermContext):
-        pass
-
-
     # Enter a parse tree produced by BosParser#term.
     def enterTerm(self, ctx:BosParser.TermContext):
         pass
@@ -530,30 +494,21 @@ class BosParserListener(ParseTreeListener):
         pass
 
 
-    # Enter a parse tree produced by BosParser#rand.
-    def enterRand(self, ctx:BosParser.RandContext):
+    # Enter a parse tree produced by BosParser#varyingTerm.
+    def enterVaryingTerm(self, ctx:BosParser.VaryingTermContext):
         pass
 
-    # Exit a parse tree produced by BosParser#rand.
-    def exitRand(self, ctx:BosParser.RandContext):
-        pass
-
-
-    # Enter a parse tree produced by BosParser#unaryOp.
-    def enterUnaryOp(self, ctx:BosParser.UnaryOpContext):
-        pass
-
-    # Exit a parse tree produced by BosParser#unaryOp.
-    def exitUnaryOp(self, ctx:BosParser.UnaryOpContext):
+    # Exit a parse tree produced by BosParser#varyingTerm.
+    def exitVaryingTerm(self, ctx:BosParser.VaryingTermContext):
         pass
 
 
-    # Enter a parse tree produced by BosParser#op.
-    def enterOp(self, ctx:BosParser.OpContext):
+    # Enter a parse tree produced by BosParser#constTerm.
+    def enterConstTerm(self, ctx:BosParser.ConstTermContext):
         pass
 
-    # Exit a parse tree produced by BosParser#op.
-    def exitOp(self, ctx:BosParser.OpContext):
+    # Exit a parse tree produced by BosParser#constTerm.
+    def exitConstTerm(self, ctx:BosParser.ConstTermContext):
         pass
 
 
@@ -572,6 +527,15 @@ class BosParserListener(ParseTreeListener):
 
     # Exit a parse tree produced by BosParser#unknown_unit_value.
     def exitUnknown_unit_value(self, ctx:BosParser.Unknown_unit_valueContext):
+        pass
+
+
+    # Enter a parse tree produced by BosParser#rand.
+    def enterRand(self, ctx:BosParser.RandContext):
+        pass
+
+    # Exit a parse tree produced by BosParser#rand.
+    def exitRand(self, ctx:BosParser.RandContext):
         pass
 
 

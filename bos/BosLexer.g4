@@ -18,7 +18,7 @@ R_BRACE: '}';
 L_SQUARE_BRACKET: '[';
 R_SQUARE_BRACKET: ']';
 SEMICOLON: ';';
-ASSIGN: '=';
+EQUAL_ASSIGN: '=';
 
 // OPERATORS
 OP_ADD: '+';

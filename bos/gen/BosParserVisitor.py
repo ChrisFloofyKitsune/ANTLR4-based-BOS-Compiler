@@ -1,4 +1,4 @@
-# Generated from E:/antlr_domain_specifc_lang_stuff/book/part2/bos/BosParser.g4 by ANTLR 4.13.2
+# Generated from E:/bar_dev/antlr4_based_bos_parser/bos/BosParser.g4 by ANTLR 4.13.2
 from antlr4 import *
 if "." in __name__:
     from .BosParser import BosParser
@@ -49,16 +49,6 @@ class BosParserVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
-    # Visit a parse tree produced by BosParser#argumentList.
-    def visitArgumentList(self, ctx:BosParser.ArgumentListContext):
-        return self.visitChildren(ctx)
-
-
-    # Visit a parse tree produced by BosParser#arguments.
-    def visitArguments(self, ctx:BosParser.ArgumentsContext):
-        return self.visitChildren(ctx)
-
-
     # Visit a parse tree produced by BosParser#argName.
     def visitArgName(self, ctx:BosParser.ArgNameContext):
         return self.visitChildren(ctx)
@@ -74,18 +64,8 @@ class BosParserVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
-    # Visit a parse tree produced by BosParser#assignStatement.
-    def visitAssignStatement(self, ctx:BosParser.AssignStatementContext):
-        return self.visitChildren(ctx)
-
-
-    # Visit a parse tree produced by BosParser#incStatement.
-    def visitIncStatement(self, ctx:BosParser.IncStatementContext):
-        return self.visitChildren(ctx)
-
-
-    # Visit a parse tree produced by BosParser#decStatement.
-    def visitDecStatement(self, ctx:BosParser.DecStatementContext):
+    # Visit a parse tree produced by BosParser#varStatement.
+    def visitVarStatement(self, ctx:BosParser.VarStatementContext):
         return self.visitChildren(ctx)
 
 
@@ -109,6 +89,21 @@ class BosParserVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
+    # Visit a parse tree produced by BosParser#assignStatement.
+    def visitAssignStatement(self, ctx:BosParser.AssignStatementContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by BosParser#incStatement.
+    def visitIncStatement(self, ctx:BosParser.IncStatementContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by BosParser#decStatement.
+    def visitDecStatement(self, ctx:BosParser.DecStatementContext):
+        return self.visitChildren(ctx)
+
+
     # Visit a parse tree produced by BosParser#keywordStatement.
     def visitKeywordStatement(self, ctx:BosParser.KeywordStatementContext):
         return self.visitChildren(ctx)
@@ -121,11 +116,6 @@ class BosParserVisitor(ParseTreeVisitor):
 
     # Visit a parse tree produced by BosParser#sleepStatement.
     def visitSleepStatement(self, ctx:BosParser.SleepStatementContext):
-        return self.visitChildren(ctx)
-
-
-    # Visit a parse tree produced by BosParser#varStatement.
-    def visitVarStatement(self, ctx:BosParser.VarStatementContext):
         return self.visitChildren(ctx)
 
 
@@ -269,11 +259,6 @@ class BosParserVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
-    # Visit a parse tree produced by BosParser#expressions.
-    def visitExpressions(self, ctx:BosParser.ExpressionsContext):
-        return self.visitChildren(ctx)
-
-
     # Visit a parse tree produced by BosParser#getTerm.
     def visitGetTerm(self, ctx:BosParser.GetTermContext):
         return self.visitChildren(ctx)
@@ -289,28 +274,18 @@ class BosParserVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
-    # Visit a parse tree produced by BosParser#opterm.
-    def visitOpterm(self, ctx:BosParser.OptermContext):
-        return self.visitChildren(ctx)
-
-
     # Visit a parse tree produced by BosParser#term.
     def visitTerm(self, ctx:BosParser.TermContext):
         return self.visitChildren(ctx)
 
 
-    # Visit a parse tree produced by BosParser#rand.
-    def visitRand(self, ctx:BosParser.RandContext):
+    # Visit a parse tree produced by BosParser#varyingTerm.
+    def visitVaryingTerm(self, ctx:BosParser.VaryingTermContext):
         return self.visitChildren(ctx)
 
 
-    # Visit a parse tree produced by BosParser#unaryOp.
-    def visitUnaryOp(self, ctx:BosParser.UnaryOpContext):
-        return self.visitChildren(ctx)
-
-
-    # Visit a parse tree produced by BosParser#op.
-    def visitOp(self, ctx:BosParser.OpContext):
+    # Visit a parse tree produced by BosParser#constTerm.
+    def visitConstTerm(self, ctx:BosParser.ConstTermContext):
         return self.visitChildren(ctx)
 
 
@@ -321,6 +296,11 @@ class BosParserVisitor(ParseTreeVisitor):
 
     # Visit a parse tree produced by BosParser#unknown_unit_value.
     def visitUnknown_unit_value(self, ctx:BosParser.Unknown_unit_valueContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by BosParser#rand.
+    def visitRand(self, ctx:BosParser.RandContext):
         return self.visitChildren(ctx)
 
 
