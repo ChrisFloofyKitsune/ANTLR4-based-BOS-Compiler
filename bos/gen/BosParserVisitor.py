@@ -269,18 +269,28 @@ class BosParserVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
-    # Visit a parse tree produced by BosParser#expression.
-    def visitExpression(self, ctx:BosParser.ExpressionContext):
+    # Visit a parse tree produced by BosParser#varyingTermExpr.
+    def visitVaryingTermExpr(self, ctx:BosParser.VaryingTermExprContext):
         return self.visitChildren(ctx)
 
 
-    # Visit a parse tree produced by BosParser#term.
-    def visitTerm(self, ctx:BosParser.TermContext):
+    # Visit a parse tree produced by BosParser#unaryExpr.
+    def visitUnaryExpr(self, ctx:BosParser.UnaryExprContext):
         return self.visitChildren(ctx)
 
 
-    # Visit a parse tree produced by BosParser#varyingTerm.
-    def visitVaryingTerm(self, ctx:BosParser.VaryingTermContext):
+    # Visit a parse tree produced by BosParser#binaryExpr.
+    def visitBinaryExpr(self, ctx:BosParser.BinaryExprContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by BosParser#constTermExpr.
+    def visitConstTermExpr(self, ctx:BosParser.ConstTermExprContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by BosParser#parenExpr.
+    def visitParenExpr(self, ctx:BosParser.ParenExprContext):
         return self.visitChildren(ctx)
 
 
@@ -289,13 +299,13 @@ class BosParserVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
-    # Visit a parse tree produced by BosParser#constant.
-    def visitConstant(self, ctx:BosParser.ConstantContext):
+    # Visit a parse tree produced by BosParser#varyingTerm.
+    def visitVaryingTerm(self, ctx:BosParser.VaryingTermContext):
         return self.visitChildren(ctx)
 
 
-    # Visit a parse tree produced by BosParser#unknown_unit_value.
-    def visitUnknown_unit_value(self, ctx:BosParser.Unknown_unit_valueContext):
+    # Visit a parse tree produced by BosParser#constant.
+    def visitConstant(self, ctx:BosParser.ConstantContext):
         return self.visitChildren(ctx)
 
 

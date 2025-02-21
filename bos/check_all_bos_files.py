@@ -21,10 +21,9 @@ class MyPreprocessor(pcpp.Preprocessor):
     def preprocess(self):
         # Parse and preprocess the input
 
-        # defaults = '#define TRUE 1\r\n#define FALSE 0\r\n#define UNKNOWN_UNIT_VALUE \r\n'
         self.define("TRUE 1")
         self.define("FALSE 0")
-        self.define("UNKNOWN_UNIT_VALUE")
+        self.define("UNKNOWN_UNIT_VALUE(val) val")
         self.parse(self.input)
         self.write(self.output)
         # Return the preprocessed output as a string

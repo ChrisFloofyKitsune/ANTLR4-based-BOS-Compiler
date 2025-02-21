@@ -476,30 +476,48 @@ class BosParserListener(ParseTreeListener):
         pass
 
 
-    # Enter a parse tree produced by BosParser#expression.
-    def enterExpression(self, ctx:BosParser.ExpressionContext):
+    # Enter a parse tree produced by BosParser#varyingTermExpr.
+    def enterVaryingTermExpr(self, ctx:BosParser.VaryingTermExprContext):
         pass
 
-    # Exit a parse tree produced by BosParser#expression.
-    def exitExpression(self, ctx:BosParser.ExpressionContext):
-        pass
-
-
-    # Enter a parse tree produced by BosParser#term.
-    def enterTerm(self, ctx:BosParser.TermContext):
-        pass
-
-    # Exit a parse tree produced by BosParser#term.
-    def exitTerm(self, ctx:BosParser.TermContext):
+    # Exit a parse tree produced by BosParser#varyingTermExpr.
+    def exitVaryingTermExpr(self, ctx:BosParser.VaryingTermExprContext):
         pass
 
 
-    # Enter a parse tree produced by BosParser#varyingTerm.
-    def enterVaryingTerm(self, ctx:BosParser.VaryingTermContext):
+    # Enter a parse tree produced by BosParser#unaryExpr.
+    def enterUnaryExpr(self, ctx:BosParser.UnaryExprContext):
         pass
 
-    # Exit a parse tree produced by BosParser#varyingTerm.
-    def exitVaryingTerm(self, ctx:BosParser.VaryingTermContext):
+    # Exit a parse tree produced by BosParser#unaryExpr.
+    def exitUnaryExpr(self, ctx:BosParser.UnaryExprContext):
+        pass
+
+
+    # Enter a parse tree produced by BosParser#binaryExpr.
+    def enterBinaryExpr(self, ctx:BosParser.BinaryExprContext):
+        pass
+
+    # Exit a parse tree produced by BosParser#binaryExpr.
+    def exitBinaryExpr(self, ctx:BosParser.BinaryExprContext):
+        pass
+
+
+    # Enter a parse tree produced by BosParser#constTermExpr.
+    def enterConstTermExpr(self, ctx:BosParser.ConstTermExprContext):
+        pass
+
+    # Exit a parse tree produced by BosParser#constTermExpr.
+    def exitConstTermExpr(self, ctx:BosParser.ConstTermExprContext):
+        pass
+
+
+    # Enter a parse tree produced by BosParser#parenExpr.
+    def enterParenExpr(self, ctx:BosParser.ParenExprContext):
+        pass
+
+    # Exit a parse tree produced by BosParser#parenExpr.
+    def exitParenExpr(self, ctx:BosParser.ParenExprContext):
         pass
 
 
@@ -512,21 +530,21 @@ class BosParserListener(ParseTreeListener):
         pass
 
 
+    # Enter a parse tree produced by BosParser#varyingTerm.
+    def enterVaryingTerm(self, ctx:BosParser.VaryingTermContext):
+        pass
+
+    # Exit a parse tree produced by BosParser#varyingTerm.
+    def exitVaryingTerm(self, ctx:BosParser.VaryingTermContext):
+        pass
+
+
     # Enter a parse tree produced by BosParser#constant.
     def enterConstant(self, ctx:BosParser.ConstantContext):
         pass
 
     # Exit a parse tree produced by BosParser#constant.
     def exitConstant(self, ctx:BosParser.ConstantContext):
-        pass
-
-
-    # Enter a parse tree produced by BosParser#unknown_unit_value.
-    def enterUnknown_unit_value(self, ctx:BosParser.Unknown_unit_valueContext):
-        pass
-
-    # Exit a parse tree produced by BosParser#unknown_unit_value.
-    def exitUnknown_unit_value(self, ctx:BosParser.Unknown_unit_valueContext):
         pass
 
 

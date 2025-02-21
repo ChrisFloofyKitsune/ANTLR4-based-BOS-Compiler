@@ -80,7 +80,6 @@ WAIT_FOR_MOVE: 'wait' '-'? 'for' '-'? 'move';
 
 SET: 'set';
 GET: 'get';
-UNKNOWN_UNIT_VALUE: 'UNKNOWN_UNIT_VALUE';
 
 CALL_SCRIPT: 'call' '-'? 'script';
 START_SCRIPT: 'start' '-'? 'script';          
@@ -113,8 +112,9 @@ Z_AXIS: 'z' AXIS;
 fragment AXIS: '-'? 'axis';
 RAND: 'rand';
 
-LINEAR_CONSTANT   : '[' '-'? (FLOAT | INT) ']';
-DEGREES_CONSTANT  : '<' '-'? (FLOAT | INT) '>';
+LINEAR_CONSTANT   : '[' '-'? NUMBER ']';
+DEGREES_CONSTANT  : '<' '-'? NUMBER '>';
+NUMBER: INT | FLOAT;
 
 FLOAT   : DIGIT+ '.' DIGIT*
         | '.' DIGIT+

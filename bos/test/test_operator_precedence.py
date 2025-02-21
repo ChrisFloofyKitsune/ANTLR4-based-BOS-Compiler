@@ -1,3 +1,5 @@
+import math
+import operator
 import unittest
 from numbers import Number
 
@@ -8,6 +10,36 @@ from bos.gen.BosLexer import BosLexer
 from bos.gen.BosParser import BosParser
 from bos.gen.BosParserVisitor import BosParserVisitor
 
+
+UNARY_OP_FUNC_MAPPING = {
+    BosParser.OP_MINUS: operator.neg,
+    BosParser.LOGICAL_NOT: operator.not_
+}
+UNARY_OP_FUNC_MAPPING.setdefault(lambda *args: 0)
+
+BINARY_OP_FUNC_MAPPING = {
+    BosParser.OP_MULT: operator.mul,
+    BosParser.OP_DIV: operator.truediv,
+    BosParser.OP_MOD: operator.mod,
+    BosParser.OP_ADD: operator.add,
+    BosParser.OP_MINUS: operator.sub,
+    BosParser.COMP_LESS: operator.lt,
+    BosParser.COMP_LESS_EQUAL: operator.le,
+    BosParser.COMP_GREATER: operator.gt,
+    BosParser.COMP_GREATER_EQUAL: operator.ge,
+    BosParser.COMP_EQUAL: operator.eq,
+    BosParser.COMP_NOT_EQUAL: operator.ne,
+    BosParser.BITWISE_AND: operator.and_,
+    BosParser.BITWISE_OR: operator.or_,
+    BosParser.BITWISE_XOR: operator.xor,
+    BosParser.LOGICAL_AND: operator.and_,
+    BosParser.LOGICAL_OR: operator.or_,
+    BosParser.LOGICAL_XOR: operator.xor
+}
+BINARY_OP_FUNC_MAPPING.setdefault(lambda *args: 0)
+
+COB_LINEAR_SCALE = 65536
+COB_ANGULAR_SCALE = COB_LINEAR_SCALE / 2.0 / math.pi
 
 class TestOperatorPrecedence(unittest.TestCase):
     def __init__(self, *args, **kwargs):
@@ -42,7 +74,7 @@ class TestOperatorPrecedence(unittest.TestCase):
     def test_basic_maths(self):
         TEST_PARAMS: dict[str, tuple[str, Number]] = {
             'Add before Mult': ('1 + 2 * 3', 7),
-            'Mult before Add': ('1 * 2 + 3', 6),
+            'Mult before Add': ('1 * 2 + 3', 5),
             'Parens before Mult': ('(1 + 2) * 3)', 9),
         }
 
@@ -51,75 +83,22 @@ class TestOperatorPrecedence(unittest.TestCase):
                 print(test_name)
                 expr = self.set_up_parser(input_str).expression()
                 visitor = CalculatorVisitor()
-                result = visitor.visitExpression(expr)
-                print('=', result)
-
-                text_repr: str = expr.toStringTree(recog=self.parser)
-
-                print(text_repr)
-
+                result = visitor.visit(expr)
+                self.assertEqual(result, expected)
 
 class CalculatorVisitor(BosParserVisitor):
-    def visitExpression(self, ctx: BosParser.ExpressionContext):
-        if ctx.op is None:
-            inner_expr = ctx.expression(0)
-            if inner_expr is not None:
-                return self.visit(inner_expr)
-            return self.visitChildren(ctx)
+    def visitParenExpr(self, ctx: BosParser.ParenExprContext):
+        return self.visit(ctx.expression())
 
-        if ctx.operand1 is None:
-            match ctx.op.type:
-                case BosParser.OP_MINUS:
-                    return -self.visit(ctx.operand0)
-                case BosParser.LOGICAL_NOT:
-                    return not self.visit(ctx.operand0)
-                case _:
-                    return 0
+    def visitUnaryExpr(self, ctx: BosParser.UnaryExprContext):
+        return UNARY_OP_FUNC_MAPPING[ctx.op.type](self.visit(ctx.operand))
 
-        match ctx.op.type:
-            case BosParser.OP_MULT:
-                return self.visit(ctx.operand0) * self.visit(ctx.operand1)
-            case BosParser.OP_DIV:
-                return self.visit(ctx.operand0) / self.visit(ctx.operand1)
-            case BosParser.OP_MOD:
-                return self.visit(ctx.operand0) % self.visit(ctx.operand1)
-            case BosParser.OP_ADD:
-                return self.visit(ctx.operand0) + self.visit(ctx.operand1)
-            case BosParser.OP_MINUS:
-                return self.visit(ctx.operand0) - self.visit(ctx.operand1)
-
-            case BosParser.COMP_LESS:
-                return self.visit(ctx.operand0) < self.visit(ctx.operand1)
-            case BosParser.COMP_LESS_EQUAL:
-                return self.visit(ctx.operand0) <= self.visit(ctx.operand1)
-            case BosParser.COMP_GREATER:
-                return self.visit(ctx.operand0) > self.visit(ctx.operand1)
-            case BosParser.COMP_GREATER_EQUAL:
-                return self.visit(ctx.operand0) >= self.visit(ctx.operand1)
-            case BosParser.COMP_EQUAL:
-                return self.visit(ctx.operand0) == self.visit(ctx.operand1)
-            case BosParser.COMP_NOT_EQUAL:
-                return self.visit(ctx.operand0) != self.visit(ctx.operand1)
-
-            case BosParser.BITWISE_AND:
-                return int(self.visit(ctx.operand0)) & int(self.visit(ctx.operand1))
-            case BosParser.BITWISE_OR:
-                return int(self.visit(ctx.operand0)) | int(self.visit(ctx.operand1))
-            case BosParser.BITWISE_XOR:
-                return int(self.visit(ctx.operand0)) ^ int(self.visit(ctx.operand1))
-
-            case BosParser.LOGICAL_AND:
-                return bool(self.visit(ctx.operand0)) and bool(self.visit(ctx.operand1))
-            case BosParser.LOGICAL_OR:
-                return bool(self.visit(ctx.operand0)) or bool(self.visit(ctx.operand1))
-            case BosParser.LOGICAL_XOR:
-                return bool(self.visit(ctx.operand0)) ^ bool(self.visit(ctx.operand1))
-            case _:
-                return 0
+    def visitBinaryExpr(self, ctx: BosParser.BinaryExprContext):
+        return BINARY_OP_FUNC_MAPPING[ctx.op.type](self.visit(ctx.operand0), self.visit(ctx.operand1))
 
     def visitConstant(self, ctx: BosParser.ConstantContext):
-        print(ctx.getText())
-        return int(ctx.getText())
+        text: str = ctx.getText()
+        return float(text.strip('[]<>'))
 
 
 if __name__ == '__main__':
