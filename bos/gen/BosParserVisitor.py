@@ -259,11 +259,6 @@ class BosParserVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
-    # Visit a parse tree produced by BosParser#getTerm.
-    def visitGetTerm(self, ctx:BosParser.GetTermContext):
-        return self.visitChildren(ctx)
-
-
     # Visit a parse tree produced by BosParser#commaExpression.
     def visitCommaExpression(self, ctx:BosParser.CommaExpressionContext):
         return self.visitChildren(ctx)
@@ -304,13 +299,23 @@ class BosParserVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
-    # Visit a parse tree produced by BosParser#constant.
-    def visitConstant(self, ctx:BosParser.ConstantContext):
+    # Visit a parse tree produced by BosParser#getTerm.
+    def visitGetTerm(self, ctx:BosParser.GetTermContext):
         return self.visitChildren(ctx)
 
 
-    # Visit a parse tree produced by BosParser#rand.
-    def visitRand(self, ctx:BosParser.RandContext):
+    # Visit a parse tree produced by BosParser#randTerm.
+    def visitRandTerm(self, ctx:BosParser.RandTermContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by BosParser#varNameTerm.
+    def visitVarNameTerm(self, ctx:BosParser.VarNameTermContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by BosParser#constant.
+    def visitConstant(self, ctx:BosParser.ConstantContext):
         return self.visitChildren(ctx)
 
 

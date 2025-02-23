@@ -88,52 +88,51 @@ keywordStatement
     | dontShadeStatement
     ;
 
-returnStatement : RETURN | RETURN expression;
-sleepStatement  : SLEEP expression;
+returnStatement : kw=RETURN  | kw=RETURN arg1=expression;
+sleepStatement  : kw=SLEEP arg1=expression;
 
 
-setStatement: SET valueId=constTerm TO expression;
-getStatement: getTerm;
+setStatement: kw=SET arg1=constTerm TO arg2=expression;
+getStatement : kw=GET arg1=constTerm | kw=GET arg1=constTerm L_PAREN arg2=expression arg3=commaExpression? arg3=commaExpression? arg4=commaExpression? R_PAREN;
 
 axis  : X_AXIS | Y_AXIS | Z_AXIS;
 
-turnStatement   : TURN pieceName TO axis expression speedOrNow;
-moveStatement   : MOVE pieceName TO axis expression speedOrNow;
+turnStatement   : kw=TURN arg1=pieceName TO arg2=axis arg3=expression arg4=speedOrNow;
+moveStatement   : kw=MOVE arg1=pieceName TO arg2=axis arg3=expression arg4=speedOrNow;
 speedOrNow      : NOW | SPEED expression;
 
-spinStatement   : SPIN pieceName AROUND axis SPEED expression acceleration?;
+spinStatement   : kw=SPIN arg1=pieceName AROUND arg2=axis SPEED arg3=expression arg4=acceleration?;
 acceleration    : ACCELERATE expression;
 
-stopSpinStatement   : STOP_SPIN pieceName AROUND axis deceleration?;
+stopSpinStatement   : kw=STOP_SPIN arg1=pieceName AROUND arg2=axis arg3=deceleration?;
 deceleration        : DECELERATE expression;
 
-waitForTurnStatement: WAIT_FOR_TURN pieceName AROUND axis;
-waitForMoveStatement: WAIT_FOR_MOVE pieceName ALONG axis;
+waitForTurnStatement: kw=WAIT_FOR_TURN arg1=pieceName AROUND arg2=axis;
+waitForMoveStatement: kw=WAIT_FOR_MOVE arg1=pieceName ALONG arg2=axis;
 
-emitSfxStatement    : EMIT_SFX expression FROM pieceName;
-playSoundStatement  : PLAY_SOUND L_PAREN stringConstant COMMA expression R_PAREN;
+emitSfxStatement    : kw=EMIT_SFX arg1=expression FROM arg2=pieceName;
+playSoundStatement  : kw=PLAY_SOUND L_PAREN arg1=stringConstant COMMA arg2=expression R_PAREN;
 
-hideStatement   : HIDE pieceName;
-showStatement   : SHOW pieceName;
-explodeStatement: EXPLODE pieceName TYPE expression;
+hideStatement   : kw=HIDE arg1=pieceName;
+showStatement   : kw=SHOW arg1=pieceName;
+explodeStatement: kw=EXPLODE arg1=pieceName TYPE arg2=expression;
 
-callStatement   : CALL_SCRIPT funcName (L_PAREN R_PAREN | L_PAREN expressionList R_PAREN);
-startStatement  : START_SCRIPT funcName (L_PAREN R_PAREN | L_PAREN expressionList R_PAREN);
+callStatement   : kw=CALL_SCRIPT arg1=funcName (L_PAREN R_PAREN | L_PAREN expressionList R_PAREN);
+startStatement  : kw=START_SCRIPT arg1=funcName (L_PAREN R_PAREN | L_PAREN expressionList R_PAREN);
 
-signalStatement         : SIGNAL expression;
-setSignalMaskStatement  : SET_SIGNAL_MASK expression;
+signalStatement         : kw=SIGNAL arg1=expression;
+setSignalMaskStatement  : kw=SET_SIGNAL_MASK arg1=expression;
 
-attachUnitStatement :   ATTACH_UNIT expression TO expression;
-dropUnitStatement   :   DROP_UNIT expression;
+attachUnitStatement :   kw=ATTACH_UNIT arg1=expression TO arg2=expression;
+dropUnitStatement   :   kw=DROP_UNIT arg1=expression;
 
-cacheStatement      :   CACHE pieceName;
-dontCacheStatement  :   DONT_CACHE pieceName;
-dontShadowStatement :   DONT_SHADOW pieceName;
-dontShadeStatement  :   DONT_SHADE pieceName;
+cacheStatement      :   kw=CACHE arg1=pieceName;
+dontCacheStatement  :   kw=DONT_CACHE arg1=pieceName;
+dontShadowStatement :   kw=DONT_SHADOW arg1=pieceName;
+dontShadeStatement  :   kw=DONT_SHADE arg1=pieceName;
 
 expressionList  : expression commaExpression*;
 
-getTerm : GET valueId=constTerm | GET valueId=constTerm L_PAREN expression commaExpression? commaExpression? commaExpression? R_PAREN;
 
 commaExpression : (COMMA expression) ;
 
@@ -142,22 +141,26 @@ expression
     | constTerm                                                                 #constTermExpr
     | varyingTerm                                                               #varyingTermExpr
     | op=(OP_MINUS | LOGICAL_NOT) operand=expression                            #unaryExpr
-    | operand0=expression op=(OP_MULT | OP_DIV | OP_MOD) operand1=expression    #binaryExpr
-    | operand0=expression op=(OP_ADD | OP_MINUS) operand1=expression            #binaryExpr
-    | operand0=expression                                                       
+    | operand1=expression op=(OP_MULT | OP_DIV | OP_MOD) operand2=expression    #binaryExpr
+    | operand1=expression op=(OP_ADD | OP_MINUS) operand2=expression            #binaryExpr
+    | operand1=expression                                                       
         op=(COMP_LESS | COMP_GREATER | COMP_LESS_EQUAL | COMP_GREATER_EQUAL)    
-        operand1=expression                                                     #binaryExpr
-    | operand0=expression op=(COMP_EQUAL | COMP_NOT_EQUAL) operand1=expression  #binaryExpr
-    | operand0=expression op=BITWISE_AND operand1=expression                    #binaryExpr
-    | operand0=expression op=BITWISE_OR operand1=expression                     #binaryExpr
-    | operand0=expression op=BITWISE_XOR operand1=expression                    #binaryExpr
-    | operand0=expression op=LOGICAL_AND operand1=expression                    #binaryExpr
-    | operand0=expression op=LOGICAL_OR operand1=expression                     #binaryExpr
-    | operand0=expression op=LOGICAL_XOR operand1=expression                    #binaryExpr
+        operand2=expression                                                     #binaryExpr
+    | operand1=expression op=(COMP_EQUAL | COMP_NOT_EQUAL) operand2=expression  #binaryExpr
+    | operand1=expression op=BITWISE_AND operand2=expression                    #binaryExpr
+    | operand1=expression op=BITWISE_OR operand2=expression                     #binaryExpr
+    | operand1=expression op=BITWISE_XOR operand2=expression                    #binaryExpr
+    | operand1=expression op=LOGICAL_AND operand2=expression                    #binaryExpr
+    | operand1=expression op=LOGICAL_OR operand2=expression                     #binaryExpr
+    | operand1=expression op=LOGICAL_XOR operand2=expression                    #binaryExpr
     ;
 
 constTerm   : constant | L_PAREN constTerm R_PAREN;
-varyingTerm : getTerm | rand | varName;
+
+varyingTerm : getTerm | randTerm | varNameTerm;
+getTerm     : getStatement;
+randTerm    : RAND L_PAREN expression COMMA expression R_PAREN;
+varNameTerm : varName;
 
 constant
     : LINEAR_CONSTANT
@@ -165,6 +168,5 @@ constant
     | NUMBER
     ;
 
-rand: RAND L_PAREN expression COMMA expression R_PAREN;
 
 stringConstant: STRING;

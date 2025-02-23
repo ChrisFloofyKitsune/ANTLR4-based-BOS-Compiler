@@ -94,7 +94,7 @@ class CalculatorVisitor(BosParserVisitor):
         return UNARY_OP_FUNC_MAPPING[ctx.op.type](self.visit(ctx.operand))
 
     def visitBinaryExpr(self, ctx: BosParser.BinaryExprContext):
-        return BINARY_OP_FUNC_MAPPING[ctx.op.type](self.visit(ctx.operand0), self.visit(ctx.operand1))
+        return BINARY_OP_FUNC_MAPPING[ctx.op.type](self.visit(ctx.operand1), self.visit(ctx.operand2))
 
     def visitConstant(self, ctx: BosParser.ConstantContext):
         text: str = ctx.getText()

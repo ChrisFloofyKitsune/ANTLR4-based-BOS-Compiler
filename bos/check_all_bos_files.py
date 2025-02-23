@@ -6,6 +6,8 @@ from pathlib import Path
 import pcpp
 from antlr4 import CommonTokenStream, InputStream
 
+from bos.ast_visitor import ASTVisitor
+# from bos.ast.ast_visitor import ASTVisitor
 from bos.gen.BosLexer import BosLexer
 from bos.gen.BosParser import BosParser
 
@@ -70,7 +72,9 @@ ______________________________________________
                 ) as pcpp_file:
                     pcpp_file.write(content)
 
-                parse_bos_file(content)
+                file_ctx = parse_bos_file(content)
+                ASTVisitor().visit(file_ctx)
+                sys.stderr.flush()
             except BaseException as err:
                 print(f'Error parsing {bos_filepath}')
                 print(err)

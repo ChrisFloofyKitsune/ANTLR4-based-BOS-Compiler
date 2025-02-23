@@ -458,15 +458,6 @@ class BosParserListener(ParseTreeListener):
         pass
 
 
-    # Enter a parse tree produced by BosParser#getTerm.
-    def enterGetTerm(self, ctx:BosParser.GetTermContext):
-        pass
-
-    # Exit a parse tree produced by BosParser#getTerm.
-    def exitGetTerm(self, ctx:BosParser.GetTermContext):
-        pass
-
-
     # Enter a parse tree produced by BosParser#commaExpression.
     def enterCommaExpression(self, ctx:BosParser.CommaExpressionContext):
         pass
@@ -539,21 +530,39 @@ class BosParserListener(ParseTreeListener):
         pass
 
 
+    # Enter a parse tree produced by BosParser#getTerm.
+    def enterGetTerm(self, ctx:BosParser.GetTermContext):
+        pass
+
+    # Exit a parse tree produced by BosParser#getTerm.
+    def exitGetTerm(self, ctx:BosParser.GetTermContext):
+        pass
+
+
+    # Enter a parse tree produced by BosParser#randTerm.
+    def enterRandTerm(self, ctx:BosParser.RandTermContext):
+        pass
+
+    # Exit a parse tree produced by BosParser#randTerm.
+    def exitRandTerm(self, ctx:BosParser.RandTermContext):
+        pass
+
+
+    # Enter a parse tree produced by BosParser#varNameTerm.
+    def enterVarNameTerm(self, ctx:BosParser.VarNameTermContext):
+        pass
+
+    # Exit a parse tree produced by BosParser#varNameTerm.
+    def exitVarNameTerm(self, ctx:BosParser.VarNameTermContext):
+        pass
+
+
     # Enter a parse tree produced by BosParser#constant.
     def enterConstant(self, ctx:BosParser.ConstantContext):
         pass
 
     # Exit a parse tree produced by BosParser#constant.
     def exitConstant(self, ctx:BosParser.ConstantContext):
-        pass
-
-
-    # Enter a parse tree produced by BosParser#rand.
-    def enterRand(self, ctx:BosParser.RandContext):
-        pass
-
-    # Exit a parse tree produced by BosParser#rand.
-    def exitRand(self, ctx:BosParser.RandContext):
         pass
 
 
