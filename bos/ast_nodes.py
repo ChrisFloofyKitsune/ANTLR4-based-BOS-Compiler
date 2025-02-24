@@ -1,18 +1,17 @@
 import sys
 from abc import ABC, abstractmethod
+from antlr4 import ParserRuleContext
 from enum import Enum
 from numbers import Number
-from types import SimpleNamespace
-from typing import Literal, Any
-
-from antlr4 import ParserRuleContext
 from pydantic import BaseModel, computed_field, model_serializer
+from types import SimpleNamespace
+from typing import Literal, Any, Optional
 
 from bos.gen.BosParser import BosParser
 
 
 class ASTNode(BaseModel, ABC):
-    
+
     @computed_field
     @property
     def node_name(self) -> str:
@@ -21,29 +20,33 @@ class ASTNode(BaseModel, ABC):
     @abstractmethod
     def value(self) -> Any:
         pass
-    
+
     @model_serializer()
     def serialize(self) -> dict[str, Any]:
         if isinstance(self, UndefNode):
-            sys.stderr.write(f'!! Parser Node was not converted to an AST Node: {self._parser_node.__class__.__name__} !!\n')
-        
+            sys.stderr.write(
+                f'!! Parser Node was not converted to an AST Node: {self._parser_node.__class__.__name__} !!\n'
+            )
+
         value = self.value()
         if isinstance(value, SimpleNamespace):
-            value=SimpleNamespace(
-                **{k: (v.model_dump()) if isinstance(v, BaseModel) else v
-                    for k, v in vars(value).items()
-                }
-            )
-            
-            value=SimpleNamespace(
-                **{k: [item.model_dump() if isinstance(item, BaseModel) else item for item in v] if isinstance(v, list) else v
-                    for k, v in vars(value).items()
-                }
-            )
-            
+            value = dict(vars(value))
+
+        if isinstance(value, dict):
+            value = {
+                k: (v.model_dump()) if isinstance(v, BaseModel) else v
+                for k, v in value.items()
+            }
+
+            value = {
+                k: [item.model_dump() if isinstance(item, BaseModel) else item for item in v]
+                if isinstance(v, list) else v
+                for k, v in value.items()
+            }
+
         return {self.node_name: value}
-        
-    _parser_node: ParserRuleContext | None
+
+    _parser_node: Optional[ParserRuleContext]
 
     def __init__(self, parser_node: ParserRuleContext = None, **kwargs):
         super().__init__(**kwargs)
@@ -65,18 +68,21 @@ class UndefNode(ASTNode):
 class ValueNode(ASTNode, ABC):
     ...
 
+
 class NameNode(ASTNode):
     name: str
-    
+
     def value(self):
         return self.name
-    
+
     @model_serializer()
     def serialize(self) -> str:
         return f'{self.node_name}(\'{self.name}\')'
 
+
 class PieceName(NameNode, ValueNode):
     ...
+
 
 class Declaration(ASTNode, ABC):
     ...
@@ -127,7 +133,7 @@ class ExpressionOp(Enum):
     LOGICAL_OR = BosParser.LOGICAL_OR
     LOGICAL_XOR = BosParser.LOGICAL_XOR
     LOGICAL_NOT = BosParser.LOGICAL_NOT
-    
+
     def __repr__(self):
         return f'ExpressionOp.{self.name}'
 
@@ -168,7 +174,7 @@ class Constant(ValueNode):
             else:
                 value = int(value)
         super().__init__(**kwargs, number_value=value, const_type=const_type)
-    
+
     def __repr__(self):
         if self.const_type == 'normal':
             return f'Constant({self.number_value})'
@@ -179,7 +185,7 @@ class Constant(ValueNode):
 
     def value(self):
         return self.number_value, self.const_type
-    
+
     @model_serializer()
     def serialize(self) -> str:
         return repr(self)
@@ -200,7 +206,7 @@ class AxisEnum(Enum):
             return AxisEnum.Z
 
         return None
-    
+
     def __repr__(self):
         return f'AxisEnum.{self.name}'
 
@@ -210,7 +216,7 @@ class Axis(ASTNode):
 
     def value(self):
         return self.axis
-    
+
     @model_serializer()
     def serialize(self) -> str:
         return f'{self.node_name}({repr(self.axis)})'
@@ -255,7 +261,7 @@ class Keyword(Enum):
     DONT_SHADOW = BosParser.DONT_SHADOW
     DONT_SHADE = BosParser.DONT_SHADE
     PLAY_SOUND = BosParser.PLAY_SOUND
-    
+
     def __repr__(self):
         return f'Keyword.{self.name}'
 
@@ -314,12 +320,14 @@ class ForStatement(Statement):
             initialization=self.initialization, condition=self.condition, increment=self.increment, block=self.block
         )
 
+
 class AssignStatement(Statement):
     variable: VarName
     expression: Expression | ValueNode
-    
+
     def value(self):
         return SimpleNamespace(variable=self.variable, expression=self.expression)
+
 
 class FuncDeclaration(Declaration):
     name: FuncName
@@ -328,12 +336,13 @@ class FuncDeclaration(Declaration):
 
     def value(self):
         return SimpleNamespace(name=self.name, args=self.args, block=self.block)
-    
+
+
 class File(ASTNode):
     piece_declarations: list[PieceDeclaration]
     static_var_declarations: list[StaticVarDeclaration]
     function_declarations: list[FuncDeclaration]
-    
+
     def value(self):
         return SimpleNamespace(
             piece_declarations=self.piece_declarations,
@@ -341,24 +350,28 @@ class File(ASTNode):
             function_declarations=self.function_declarations
         )
 
+
 class VaryingTerm(ValueNode, ABC):
     ...
 
+
 class GetTerm(VaryingTerm):
     get_statement: KeywordStatement
-    
+
     def value(self):
         return self.get_statement
+
 
 class RandTerm(VaryingTerm):
     min: Expression | ValueNode
     max: Expression | ValueNode
-    
+
     def value(self):
         return SimpleNamespace(min=self.min, max=self.max)
 
+
 class VarNameTerm(VaryingTerm):
     var_name: VarName
-    
+
     def value(self):
         return self.var_name

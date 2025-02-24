@@ -1,15 +1,14 @@
+from collections import defaultdict
+
 import itertools
 import json
-from collections import defaultdict
-from types import SimpleNamespace
-from typing import Protocol
-
 from antlr4.CommonTokenStream import CommonTokenStream
 from antlr4.InputStream import InputStream
 from antlr4.ParserRuleContext import ParserRuleContext
+from types import SimpleNamespace
 
-import bos.nodes as nodes
-from bos.nodes import PieceDeclaration, StaticVarDeclaration, FuncDeclaration
+import bos.ast_nodes as nodes
+from bos.ast_nodes import PieceDeclaration, StaticVarDeclaration, FuncDeclaration
 from bos.gen.BosLexer import BosLexer
 from bos.gen.BosParser import BosParser
 from bos.gen.BosParserVisitor import BosParserVisitor
@@ -99,8 +98,7 @@ class ASTVisitor(BosParserVisitor):
             statements=self.visitTypedChildren(ctx, BosParser.StatementContext),
             parser_node=ctx
         )
-    
-    
+
     def visitKeywordStatementInner(self, ctx: ParserRuleContext):
         keyword = nodes.Keyword(getattr(ctx, 'kw').type)
         args = []
@@ -116,11 +114,10 @@ class ASTVisitor(BosParserVisitor):
             args=args,
             parser_node=ctx
         )
-    
-    
+
     def visitKeywordStatement(self, ctx: BosParser.KeywordStatementContext):
         return self.visitKeywordStatementInner(ctx.getChild(0, ParserRuleContext))
-        
+
     def visitVarStatement(self, ctx: BosParser.VarStatementContext):
         return nodes.VarStatement(
             vars=self.visitTypedChildren(ctx, BosParser.VarNameContext),
@@ -203,25 +200,26 @@ class ASTVisitor(BosParserVisitor):
         if expr := ctx.expression():
             return self.visit(expr)
         return None
-    
-    def visitGetTerm(self, ctx:BosParser.GetTermContext):
+
+    def visitGetTerm(self, ctx: BosParser.GetTermContext):
         return nodes.GetTerm(
             get_statement=self.visitKeywordStatementInner(ctx.getStatement()),
             parser_node=ctx
         )
-    
-    def visitRandTerm(self, ctx:BosParser.RandTermContext):
+
+    def visitRandTerm(self, ctx: BosParser.RandTermContext):
         return nodes.RandTerm(
             min=self.visit(ctx.expression(0)),
             max=self.visit(ctx.expression(1)),
             parser_node=ctx
         )
-    
-    def visitVarNameTerm(self, ctx:BosParser.VarNameTermContext):
+
+    def visitVarNameTerm(self, ctx: BosParser.VarNameTermContext):
         return nodes.VarNameTerm(
             var_name=self.visit(ctx.varName()),
             parser_node=ctx
         )
+
 
 def main():
     with open('preprocessed/legcom.pcpp', 'rt', encoding='utf8') as file:

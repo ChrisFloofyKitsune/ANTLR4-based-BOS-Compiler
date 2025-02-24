@@ -1,39 +1,12 @@
 import os.path
+
 import sys
-from io import StringIO
 from pathlib import Path
 
-import pcpp
-from antlr4 import CommonTokenStream, InputStream
+from bos import bos_loader
 
-from bos.ast_visitor import ASTVisitor
+
 # from bos.ast.ast_visitor import ASTVisitor
-from bos.gen.BosLexer import BosLexer
-from bos.gen.BosParser import BosParser
-
-# yoinked from https://github.com/beyond-all-reason/BARScriptCompiler/blob/main/bos2cob_py3.py#L1455
-class MyPreprocessor(pcpp.Preprocessor):
-    def __init__(self, input_string):
-        super().__init__()
-        # Use StringIO to simulate file input and output
-        self.line_directive = None
-        self.input = input_string
-        self.output = StringIO()
-
-    def preprocess(self):
-        # Parse and preprocess the input
-
-        self.define("TRUE 1")
-        self.define("FALSE 0")
-        self.define("UNKNOWN_UNIT_VALUE(val) val")
-        self.parse(self.input)
-        self.write(self.output)
-        # Return the preprocessed output as a string
-        return self.output.getvalue()
-
-    def on_error(self, file, line, msg):
-        print(f"Preprocessor error in file: {file} at line: {line} Error: {msg}")
-        return super().on_error(file, line, msg)()
 
 
 def main():
@@ -41,7 +14,7 @@ def main():
     preprocessed_dir = Path('./preprocessed')
     preprocessed_dir.mkdir(exist_ok=True)
 
-    for root, dirs, files in os.walk(examples_dir):
+    for root, _dirs, files in os.walk(examples_dir):
         root = Path(root)
         bos_files = [f for f in files if f.endswith('.bos')]
         print(
@@ -60,39 +33,30 @@ ______________________________________________
 
                 print(f'======== PARSING: {filepath} =============', flush=True)
 
-                preproc = MyPreprocessor(content)
-                preproc.add_path(examples_dir)
-                preproc.add_path(os.path.dirname(os.path.abspath(filepath)))
-                content = preproc.preprocess()
+                preprocced = bos_loader.preprocess_bos_file(content, include_paths=[examples_dir], source_path=filepath)
 
                 with open(
                     preprocessed_dir.joinpath(bos_filepath).with_suffix('.pcpp').resolve(),
                     'w',
                     encoding='utf-8'
                 ) as pcpp_file:
-                    pcpp_file.write(content)
+                    pcpp_file.write(preprocced)
 
-                file_ctx = parse_bos_file(content)
-                ASTVisitor().visit(file_ctx)
+                file_ast = bos_loader.parse_preprocessed_bos_file(preprocced)
+                format_str = 'PARSED: {} | Referenced Pieces: {} | Static Vars: {} | Functions: {}'
+                print(
+                    format_str.format(
+                        bos_filepath,
+                        sum(len(pd.names) for pd in file_ast.piece_declarations),
+                        sum(len(sd.names) for sd in file_ast.static_var_declarations),
+                        len(file_ast.function_declarations)
+                    ), flush=True
+                )
                 sys.stderr.flush()
             except BaseException as err:
                 print(f'Error parsing {bos_filepath}')
                 print(err)
                 continue
-
-
-def parse_bos_file(data: str):
-
-    input_stream = InputStream(data)
-    lexer = BosLexer(input_stream)
-    # lexer.addErrorListener(DiagnosticErrorListener())
-    tokens = CommonTokenStream(lexer)
-    parser = BosParser(tokens)
-    # parser.addErrorListener(DiagnosticErrorListener())
-
-    sys.stdout.flush()
-
-    return parser.file_()
 
 
 if __name__ == '__main__':
