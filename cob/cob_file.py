@@ -54,18 +54,18 @@ class CobFile:
         ) = CobFile.COB_HEADER_STRUCT.unpack_from(data_source, 0)
 
         self.static_var_count = static_var_count
-        self.code = memoryview(self.byte_data)[code_ptr:code_ptr + (code_length * 4)].cast('i')
+        self.code = memoryview(self.byte_data)[code_ptr:code_ptr + (code_length * 4)].cast('L')
 
         def extract_strings(start_ptr: int, count: int):
             result = []
-            for string_ptr in memoryview(self.byte_data[start_ptr:start_ptr + (count * 4)]).cast('i'):
+            for string_ptr in memoryview(self.byte_data[start_ptr:start_ptr + (count * 4)]).cast('L'):
                 result.append(
                     self.byte_data[string_ptr:self.byte_data.find(b'\0', string_ptr)].decode('utf8')
                 )
             return result
 
         self.function_ptrs = [
-            *memoryview(self.byte_data[function_code_ptrs_ptr:function_code_ptrs_ptr + (function_count * 4)]).cast('i')
+            *memoryview(self.byte_data[function_code_ptrs_ptr:function_code_ptrs_ptr + (function_count * 4)]).cast('L')
         ]
         self.function_lengths = [
             ptr_next - ptr for ptr, ptr_next in
