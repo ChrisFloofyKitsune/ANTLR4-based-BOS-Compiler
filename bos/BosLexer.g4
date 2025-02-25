@@ -6,7 +6,8 @@ options {
 
 channels {
     COMMENTS,
-    PREPROCESSOR
+    PREPROCESSOR,
+    LINE_MACRO
 }
 
 // SYMBOLS
@@ -126,6 +127,8 @@ INT     : DIGIT+
 
 fragment DIGIT     :    [0-9];
 fragment HEX_DIGIT :    [0-9a-f];
+
+LINE_DIRECTIVE: '#line ' INT ' ' ~[\r\n]* -> channel(LINE_MACRO);
 
 MULTI_LINE_MACRO: '#' (~[\r\n]*? '\\' [\r\n])+ ~[\r\n]+ -> channel(PREPROCESSOR);
 DIRECTIVE: '#' ~[\r\n]* -> channel(PREPROCESSOR);

@@ -3,7 +3,7 @@ import os.path
 import sys
 from pathlib import Path
 
-from bos import bos_loader
+from bos.bos_loader import BosLoader
 
 
 # from bos.ast.ast_visitor import ASTVisitor
@@ -26,23 +26,16 @@ ______________________________________________
             flush=True
         )
         for bos_filepath in bos_files:
+            if 'preprocessed' in bos_filepath:
+                continue
+
             try:
                 filepath = root.joinpath(bos_filepath)
-                with open(filepath, 'r', encoding='utf-8') as bos_file:
-                    content = bos_file.read()
-
                 print(f'======== PARSING: {filepath} =============', flush=True)
 
-                preprocced = bos_loader.preprocess_bos_file(content, include_paths=[examples_dir], source_path=filepath)
-
-                with open(
-                    preprocessed_dir.joinpath(bos_filepath).with_suffix('.pcpp').resolve(),
-                    'w',
-                    encoding='utf-8'
-                ) as pcpp_file:
-                    pcpp_file.write(preprocced)
-
-                file_ast = bos_loader.parse_preprocessed_bos_file(preprocced)
+                loader = BosLoader(filepath, [examples_dir])
+                loader.dump_preprocessed_file(preprocessed_dir)
+                file_ast = loader.load_file()
                 format_str = 'PARSED: {} | Referenced Pieces: {} | Static Vars: {} | Functions: {}'
                 print(
                     format_str.format(

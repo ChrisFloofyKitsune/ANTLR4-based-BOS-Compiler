@@ -1,11 +1,13 @@
+import operator
 import sys
 from abc import ABC, abstractmethod
 from antlr4 import ParserRuleContext
 from enum import Enum
+from functools import reduce
 from numbers import Number
 from pydantic import BaseModel, computed_field, model_serializer
 from types import SimpleNamespace
-from typing import Literal, Any, Optional
+from typing import Literal, Any, Optional, Union
 
 from bos.gen.BosParser import BosParser
 
@@ -46,11 +48,15 @@ class ASTNode(BaseModel, ABC):
 
         return {self.node_name: value}
 
-    _parser_node: Optional[ParserRuleContext]
+    _parser_node: Union[ParserRuleContext, None]
 
     def __init__(self, parser_node: ParserRuleContext = None, **kwargs):
         super().__init__(**kwargs)
         self._parser_node = parser_node
+
+    @property
+    def parser_node(self) -> Union[ParserRuleContext, None]:
+        return self._parser_node
 
 
 class UndefNode(ASTNode):
@@ -77,6 +83,15 @@ class NameNode(ASTNode):
 
     @model_serializer()
     def serialize(self) -> str:
+        return f'{self.node_name}(\'{self.name}\')'
+    
+    def __eq__(self, other):
+        return isinstance(other, NameNode) and self.name == other.name
+    
+    def __hash__(self):
+        return hash(self.name)
+    
+    def __repr__(self):
         return f'{self.node_name}(\'{self.name}\')'
 
 
@@ -342,6 +357,14 @@ class File(ASTNode):
     piece_declarations: list[PieceDeclaration]
     static_var_declarations: list[StaticVarDeclaration]
     function_declarations: list[FuncDeclaration]
+
+    @property
+    def piece_names(self) -> list[PieceName]:
+        return reduce(operator.iadd, (pd.names for pd in self.piece_declarations), [])
+
+    @property
+    def static_var_names(self) -> list[VarName]:
+        return reduce(operator.iadd, (sd.names for sd in self.static_var_declarations), [])
 
     def value(self):
         return SimpleNamespace(
