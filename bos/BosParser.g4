@@ -34,7 +34,8 @@ statement
     | whileStatement
     | forStatement
     | assignStatement SEMICOLON
-    | SEMICOLON
+    | returnStatement
+    | emptyStatement
     ;
 
 varStatement: VAR varName (COMMA varName)*;
@@ -54,6 +55,8 @@ assignStatement
 incStatement: OP_INCREMENT varName;
 decStatement: OP_DECREMENT varName;
 
+returnStatement : RETURN  | RETURN expression;
+emptyStatement: SEMICOLON;
 
 keywordStatement
     : callStatement
@@ -75,7 +78,6 @@ keywordStatement
     | getStatement
     | attachUnitStatement
     | dropUnitStatement
-    | returnStatement
 //    | breakStatement
 //    | continueStatement
 //    | soundStatement
@@ -88,7 +90,6 @@ keywordStatement
     | dontShadeStatement
     ;
 
-returnStatement : kw=RETURN  | kw=RETURN arg1=expression;
 sleepStatement  : kw=SLEEP arg1=expression;
 
 

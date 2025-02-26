@@ -181,7 +181,16 @@ class ASTVisitor(BosParserVisitor):
             expression=self.visit(ctx.expression()),
             parser_node=ctx
         )
-
+    
+    def visitReturnStatement(self, ctx:BosParser.ReturnStatementContext):
+        return nodes.ReturnStatement(
+            expression=self.visit(ctx.expression()),
+            parser_node=ctx
+        )
+    
+    def visitEmptyStatement(self, ctx:BosParser.EmptyStatementContext):
+        return nodes.EmptyStatement(parser_node=ctx)
+    
     def visitFile(self, ctx: BosParser.FileContext):
         return nodes.File(
             declarations=self.visitTypedChildren(ctx, BosParser.DeclarationContext),

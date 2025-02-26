@@ -104,13 +104,18 @@ class BosParserVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
-    # Visit a parse tree produced by BosParser#keywordStatement.
-    def visitKeywordStatement(self, ctx:BosParser.KeywordStatementContext):
+    # Visit a parse tree produced by BosParser#returnStatement.
+    def visitReturnStatement(self, ctx:BosParser.ReturnStatementContext):
         return self.visitChildren(ctx)
 
 
-    # Visit a parse tree produced by BosParser#returnStatement.
-    def visitReturnStatement(self, ctx:BosParser.ReturnStatementContext):
+    # Visit a parse tree produced by BosParser#emptyStatement.
+    def visitEmptyStatement(self, ctx:BosParser.EmptyStatementContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by BosParser#keywordStatement.
+    def visitKeywordStatement(self, ctx:BosParser.KeywordStatementContext):
         return self.visitChildren(ctx)
 
 

@@ -179,21 +179,30 @@ class BosParserListener(ParseTreeListener):
         pass
 
 
-    # Enter a parse tree produced by BosParser#keywordStatement.
-    def enterKeywordStatement(self, ctx:BosParser.KeywordStatementContext):
-        pass
-
-    # Exit a parse tree produced by BosParser#keywordStatement.
-    def exitKeywordStatement(self, ctx:BosParser.KeywordStatementContext):
-        pass
-
-
     # Enter a parse tree produced by BosParser#returnStatement.
     def enterReturnStatement(self, ctx:BosParser.ReturnStatementContext):
         pass
 
     # Exit a parse tree produced by BosParser#returnStatement.
     def exitReturnStatement(self, ctx:BosParser.ReturnStatementContext):
+        pass
+
+
+    # Enter a parse tree produced by BosParser#emptyStatement.
+    def enterEmptyStatement(self, ctx:BosParser.EmptyStatementContext):
+        pass
+
+    # Exit a parse tree produced by BosParser#emptyStatement.
+    def exitEmptyStatement(self, ctx:BosParser.EmptyStatementContext):
+        pass
+
+
+    # Enter a parse tree produced by BosParser#keywordStatement.
+    def enterKeywordStatement(self, ctx:BosParser.KeywordStatementContext):
+        pass
+
+    # Exit a parse tree produced by BosParser#keywordStatement.
+    def exitKeywordStatement(self, ctx:BosParser.KeywordStatementContext):
         pass
 
 

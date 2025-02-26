@@ -1,3 +1,5 @@
+from collections.abc import Generator
+
 import operator
 import sys
 from abc import ABC, abstractmethod
@@ -108,6 +110,9 @@ class PieceDeclaration(Declaration):
 
     def value(self):
         return self.names
+    
+    def __iter__(self) -> Generator[PieceName]:
+        yield from self.names
 
 
 class VarName(NameNode):
@@ -119,6 +124,9 @@ class StaticVarDeclaration(Declaration):
 
     def value(self):
         return self.names
+    
+    def __iter__(self) -> Generator[VarName]:
+        yield from self.names
 
 
 class FuncName(NameNode):
@@ -290,6 +298,15 @@ class StatementBlock(ASTNode):
 
     def value(self):
         return self.statements
+    
+    def __iter__(self) -> Generator[Statement]:
+        yield from (s for s in self.statements if isinstance(s, Statement))
+    
+    def __len__(self):
+        return len(self.statements)
+    
+    def __getitem__(self, key):
+        return self.statements[key]
 
 
 class KeywordStatement(Statement):
@@ -305,6 +322,9 @@ class VarStatement(Statement):
 
     def value(self):
         return self.vars
+    
+    def __iter__(self) -> Generator[VarName]:
+        yield from self.vars
 
 
 class IfStatement(Statement):
@@ -344,6 +364,16 @@ class AssignStatement(Statement):
         return SimpleNamespace(variable=self.variable, expression=self.expression)
 
 
+class ReturnStatement(Statement):
+    expression: Expression | ValueNode | None
+
+    def value(self):
+        return SimpleNamespace(expression=self.expression)
+
+class EmptyStatement(Statement):
+    def value(self):
+        return None
+
 class FuncDeclaration(Declaration):
     name: FuncName
     args: list[ArgName]
@@ -360,7 +390,9 @@ class File(ASTNode):
         return SimpleNamespace(
             declarations=self.declarations
         )
-
+    
+    def __iter__(self) -> Generator[Declaration]:
+        yield from self.declarations
 
 class VaryingTerm(ValueNode, ABC):
     ...
