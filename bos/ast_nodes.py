@@ -354,23 +354,11 @@ class FuncDeclaration(Declaration):
 
 
 class File(ASTNode):
-    piece_declarations: list[PieceDeclaration]
-    static_var_declarations: list[StaticVarDeclaration]
-    function_declarations: list[FuncDeclaration]
-
-    @property
-    def piece_names(self) -> list[PieceName]:
-        return reduce(operator.iadd, (pd.names for pd in self.piece_declarations), [])
-
-    @property
-    def static_var_names(self) -> list[VarName]:
-        return reduce(operator.iadd, (sd.names for sd in self.static_var_declarations), [])
+    declarations: list[Declaration]
 
     def value(self):
         return SimpleNamespace(
-            piece_declarations=self.piece_declarations,
-            static_var_declarations=self.static_var_declarations,
-            function_declarations=self.function_declarations
+            declarations=self.declarations
         )
 
 

@@ -183,16 +183,8 @@ class ASTVisitor(BosParserVisitor):
         )
 
     def visitFile(self, ctx: BosParser.FileContext):
-
-        child_nodes = itertools.chain(self.visitChildren(child) for child in ctx.children);
-        grouped_nodes = defaultdict(list)
-        for child in child_nodes:
-            grouped_nodes[child.__class__].append(child)
-
         return nodes.File(
-            piece_declarations=grouped_nodes[PieceDeclaration],
-            static_var_declarations=grouped_nodes[StaticVarDeclaration],
-            function_declarations=grouped_nodes[FuncDeclaration],
+            declarations=self.visitTypedChildren(ctx, BosParser.DeclarationContext),
             parser_node=ctx
         )
 
