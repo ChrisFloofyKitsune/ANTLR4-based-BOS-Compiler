@@ -1,15 +1,12 @@
-from collections.abc import Generator
-
-import operator
 import sys
 from abc import ABC, abstractmethod
 from antlr4 import ParserRuleContext
+from collections.abc import Generator
 from enum import Enum
-from functools import reduce
 from numbers import Number
 from pydantic import BaseModel, computed_field, model_serializer
 from types import SimpleNamespace
-from typing import Literal, Any, Optional, Union
+from typing import Literal, Any, Union
 
 from bos.gen.BosParser import BosParser
 
@@ -86,13 +83,13 @@ class NameNode(ASTNode):
     @model_serializer()
     def serialize(self) -> str:
         return f'{self.node_name}(\'{self.name}\')'
-    
+
     def __eq__(self, other):
         return isinstance(other, NameNode) and self.name == other.name
-    
+
     def __hash__(self):
         return hash(self.name)
-    
+
     def __repr__(self):
         return f'{self.node_name}(\'{self.name}\')'
 
@@ -110,7 +107,7 @@ class PieceDeclaration(Declaration):
 
     def value(self):
         return self.names
-    
+
     def __iter__(self) -> Generator[PieceName]:
         yield from self.names
 
@@ -124,7 +121,7 @@ class StaticVarDeclaration(Declaration):
 
     def value(self):
         return self.names
-    
+
     def __iter__(self) -> Generator[VarName]:
         yield from self.names
 
@@ -189,7 +186,7 @@ class Constant(ValueNode):
                 const_type = 'linear'
             elif value[0] == '<' and value[-1] == '>':
                 const_type = 'angular'
-            value = value.strip('[]<>')
+            value = value.strip('()[]<>')
             if '.' in value:
                 value = float(value)
             elif value.startswith('0x'):
@@ -202,9 +199,9 @@ class Constant(ValueNode):
         if self.const_type == 'normal':
             return f'Constant({self.number_value})'
         if self.const_type == 'angular':
-            return f'Constant(\'<{self.number_value}>\')'
+            return f'Constant(\'<{self.number_value}> degrees\')'
         if self.const_type == 'linear':
-            return f'Constant(\'[{self.number_value}]\')'
+            return f'Constant(\'[{self.number_value}] units\')'
 
     def value(self):
         return self.number_value, self.const_type
@@ -298,13 +295,13 @@ class StatementBlock(ASTNode):
 
     def value(self):
         return self.statements
-    
+
     def __iter__(self) -> Generator[Statement]:
         yield from (s for s in self.statements if isinstance(s, Statement))
-    
+
     def __len__(self):
         return len(self.statements)
-    
+
     def __getitem__(self, key):
         return self.statements[key]
 
@@ -317,12 +314,20 @@ class KeywordStatement(Statement):
         return SimpleNamespace(keyword=self.keyword, args=self.args)
 
 
+class CallStatement(KeywordStatement):
+    ...
+
+
+class StartStatement(KeywordStatement):
+    ...
+
+
 class VarStatement(Statement):
     vars: list[VarName]
 
     def value(self):
         return self.vars
-    
+
     def __iter__(self) -> Generator[VarName]:
         yield from self.vars
 
@@ -370,9 +375,11 @@ class ReturnStatement(Statement):
     def value(self):
         return SimpleNamespace(expression=self.expression)
 
+
 class EmptyStatement(Statement):
     def value(self):
         return None
+
 
 class FuncDeclaration(Declaration):
     name: FuncName
@@ -390,19 +397,33 @@ class File(ASTNode):
         return SimpleNamespace(
             declarations=self.declarations
         )
-    
+
     def __iter__(self) -> Generator[Declaration]:
         yield from self.declarations
+
 
 class VaryingTerm(ValueNode, ABC):
     ...
 
 
+class GetCall(ASTNode):
+    value_idx: Constant
+    args: list[Expression | ValueNode]
+
+    
+
+    def value(self) -> Any:
+        if len(self.args) == 0:
+            return SimpleNamespace(value_idx=self.value_idx)
+
+        return SimpleNamespace(value_idx=self.value_idx, args=self.args)
+
+
 class GetTerm(VaryingTerm):
-    get_statement: KeywordStatement
+    get_call: GetCall
 
     def value(self):
-        return self.get_statement
+        return self.get_call
 
 
 class RandTerm(VaryingTerm):

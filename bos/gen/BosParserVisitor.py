@@ -299,6 +299,11 @@ class BosParserVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
+    # Visit a parse tree produced by BosParser#constIntTerm.
+    def visitConstIntTerm(self, ctx:BosParser.ConstIntTermContext):
+        return self.visitChildren(ctx)
+
+
     # Visit a parse tree produced by BosParser#varyingTerm.
     def visitVaryingTerm(self, ctx:BosParser.VaryingTermContext):
         return self.visitChildren(ctx)
@@ -316,6 +321,11 @@ class BosParserVisitor(ParseTreeVisitor):
 
     # Visit a parse tree produced by BosParser#varNameTerm.
     def visitVarNameTerm(self, ctx:BosParser.VarNameTermContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by BosParser#getCall.
+    def visitGetCall(self, ctx:BosParser.GetCallContext):
         return self.visitChildren(ctx)
 
 

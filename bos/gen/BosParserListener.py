@@ -530,6 +530,15 @@ class BosParserListener(ParseTreeListener):
         pass
 
 
+    # Enter a parse tree produced by BosParser#constIntTerm.
+    def enterConstIntTerm(self, ctx:BosParser.ConstIntTermContext):
+        pass
+
+    # Exit a parse tree produced by BosParser#constIntTerm.
+    def exitConstIntTerm(self, ctx:BosParser.ConstIntTermContext):
+        pass
+
+
     # Enter a parse tree produced by BosParser#varyingTerm.
     def enterVaryingTerm(self, ctx:BosParser.VaryingTermContext):
         pass
@@ -563,6 +572,15 @@ class BosParserListener(ParseTreeListener):
 
     # Exit a parse tree produced by BosParser#varNameTerm.
     def exitVarNameTerm(self, ctx:BosParser.VarNameTermContext):
+        pass
+
+
+    # Enter a parse tree produced by BosParser#getCall.
+    def enterGetCall(self, ctx:BosParser.GetCallContext):
+        pass
+
+    # Exit a parse tree produced by BosParser#getCall.
+    def exitGetCall(self, ctx:BosParser.GetCallContext):
         pass
 
 

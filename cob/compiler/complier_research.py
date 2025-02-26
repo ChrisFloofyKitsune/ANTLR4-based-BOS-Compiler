@@ -2,7 +2,7 @@ from pathlib import Path
 
 import bos.ast_nodes as nodes
 from bos.bos_loader import BosLoader
-from cob.opcodes import OpCode
+from cob.opcodes import BosOpCode
 from cob.compiler.cob_compiler import CobCompiler
 
 
@@ -10,9 +10,9 @@ def __main(file_node: nodes.File):
     compiler = CobCompiler(raise_exception_on_unhandled_node=False)
     compiler._handle_node(file_node)
     code = compiler.code
-    valid_op_codes = set(OpCode)
+    valid_op_codes = set(BosOpCode)
     print(compiler.function_code_indices)
-    print([OpCode(val).name if (val in valid_op_codes) else val for val in code])
+    print([BosOpCode(val).name if (val in valid_op_codes) else val for val in code])
 
 
 if __name__ == '__main__':

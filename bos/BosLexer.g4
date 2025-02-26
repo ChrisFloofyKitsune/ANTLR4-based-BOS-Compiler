@@ -115,7 +115,7 @@ RAND: 'rand';
 
 LINEAR_CONSTANT   : '[' '-'? NUMBER ']';
 DEGREES_CONSTANT  : '<' '-'? NUMBER '>';
-NUMBER: INT | FLOAT;
+fragment NUMBER: INT | FLOAT;
 
 FLOAT   : DIGIT+ '.' DIGIT*
         | '.' DIGIT+

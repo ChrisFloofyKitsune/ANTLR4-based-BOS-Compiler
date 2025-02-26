@@ -34,7 +34,7 @@ statement
     | whileStatement
     | forStatement
     | assignStatement SEMICOLON
-    | returnStatement
+    | returnStatement SEMICOLON
     | emptyStatement
     ;
 
@@ -93,8 +93,9 @@ keywordStatement
 sleepStatement  : kw=SLEEP arg1=expression;
 
 
-setStatement: kw=SET arg1=constTerm TO arg2=expression;
-getStatement : kw=GET arg1=constTerm | kw=GET arg1=constTerm L_PAREN arg2=expression arg3=commaExpression? arg3=commaExpression? arg4=commaExpression? R_PAREN;
+setStatement    : kw=SET arg1=constIntTerm TO arg2=expression;
+// special "no return" version of get call done for side effects
+getStatement    : kw=GET arg1=getCall;
 
 axis  : X_AXIS | Y_AXIS | Z_AXIS;
 
@@ -157,16 +158,20 @@ expression
     ;
 
 constTerm   : constant | L_PAREN constTerm R_PAREN;
+constIntTerm: INT | L_PAREN constIntTerm R_PAREN;
 
 varyingTerm : getTerm | randTerm | varNameTerm;
-getTerm     : getStatement;
+getTerm     : GET getCall;
 randTerm    : RAND L_PAREN expression COMMA expression R_PAREN;
 varNameTerm : varName;
+
+getCall: value_idx=constIntTerm | value_idx=constIntTerm L_PAREN arg1=expression arg2=commaExpression? arg3=commaExpression? arg4=commaExpression? R_PAREN;
 
 constant
     : LINEAR_CONSTANT
     | DEGREES_CONSTANT
-    | NUMBER
+    | INT
+    | FLOAT
     ;
 
 

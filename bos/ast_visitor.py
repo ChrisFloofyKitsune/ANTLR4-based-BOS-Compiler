@@ -65,6 +65,9 @@ class ASTVisitor(BosParserVisitor):
 
     def visitConstant(self, ctx: BosParser.ConstantContext):
         return nodes.Constant(value=ctx.getText(), parser_node=ctx)
+    
+    def visitConstIntTerm(self, ctx:BosParser.ConstIntTermContext):
+        return nodes.Constant(value=ctx.getText(), parser_node=ctx)
 
     def visitAxis(self, ctx: BosParser.AxisContext):
         return nodes.Axis(axis=nodes.AxisEnum.from_str(ctx.getText()), parser_node=ctx)
@@ -101,19 +104,30 @@ class ASTVisitor(BosParserVisitor):
 
     def visitKeywordStatementInner(self, ctx: ParserRuleContext):
         keyword = nodes.Keyword(getattr(ctx, 'kw').type)
-        args = []
-        for attr in dir(ctx):
-            if attr.startswith('arg') and (arg_ctx := getattr(ctx, attr)) is not None:
-                args.append(self.visit(arg_ctx))
+        args = self._extract_args(ctx)
 
-        if expr_list_ctx := ctx.getChild(0, BosParser.ExpressionListContext):
+        if (expr_list_ctx := ctx.getChild(0, BosParser.ExpressionListContext)) is not None:
             args.extend(self.visit(expr_list_ctx))
+        
+        statement_class = nodes.KeywordStatement
+        if keyword == nodes.Keyword.CALL_SCRIPT:
+            statement_class = nodes.CallStatement
+        elif keyword == nodes.Keyword.START_SCRIPT:
+            statement_class = nodes.StartStatement
 
-        return nodes.KeywordStatement(
+        # noinspection PyArgumentList
+        return statement_class(
             keyword=keyword,
             args=args,
             parser_node=ctx
         )
+
+    def _extract_args(self, ctx):
+        args = []
+        for attr in dir(ctx):
+            if attr.startswith('arg') and (arg_ctx := getattr(ctx, attr, None)) is not None:
+                args.append(self.visit(arg_ctx))
+        return args
 
     def visitKeywordStatement(self, ctx: BosParser.KeywordStatementContext):
         return self.visitKeywordStatementInner(ctx.getChild(0, ParserRuleContext))
@@ -204,7 +218,7 @@ class ASTVisitor(BosParserVisitor):
 
     def visitGetTerm(self, ctx: BosParser.GetTermContext):
         return nodes.GetTerm(
-            get_statement=self.visitKeywordStatementInner(ctx.getStatement()),
+            get_call=self.visit(ctx.getCall()),
             parser_node=ctx
         )
 
@@ -220,10 +234,17 @@ class ASTVisitor(BosParserVisitor):
             var_name=self.visit(ctx.varName()),
             parser_node=ctx
         )
+    
+    def visitGetCall(self, ctx:BosParser.GetCallContext):
+        return nodes.GetCall(
+            value_idx=self.visit(ctx.value_idx),
+            args=self._extract_args(ctx),
+            parser_node=ctx
+        )
 
 
 def main():
-    with open('preprocessed/legcom.pcpp', 'rt', encoding='utf8') as file:
+    with open('preprocessed/legmed.preprocessed.bos', 'rt', encoding='utf8') as file:
         str_data = file.read()
 
     input_stream = InputStream(str_data)
@@ -232,6 +253,7 @@ def main():
     parser = BosParser(tokens)
 
     token_tree: BosParser.FileContext = parser.file_()
+    # print(token_tree.toStringTree(recog=parser))
     visitor = ASTVisitor()
 
     ast: nodes.ASTNode = visitor.visit(token_tree)

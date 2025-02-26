@@ -1,10 +1,9 @@
-import struct
+from enum import IntEnum
 
-from enum import Enum, nonmember, IntEnum
-from typing import ClassVar, Literal
+from bos.ast_nodes import Keyword
 
 
-class OpCode(IntEnum):
+class BosOpCode(IntEnum):
     MOVE = 0x10001000
     TURN = 0x10002000
     SPIN = 0x10003000
@@ -72,9 +71,64 @@ class OpCode(IntEnum):
     SET = 0x10082000
     ATTACH_UNIT = 0x10083000
     DROP_UNIT = 0x10084000
-    
+
     def __repr__(self):
         return f'<{self.__class__.__name__}.{self.name}: 0x{self:08X}>'
+    
+    @classmethod
+    def from_keyword(cls, keyword: Keyword):
+        match keyword:
+            case Keyword.TURN:
+                return BosOpCode.TURN
+            case Keyword.MOVE:
+                return BosOpCode.MOVE
+            case Keyword.SPIN:
+                return BosOpCode.SPIN
+            case Keyword.STOP_SPIN:
+                return BosOpCode.STOP_SPIN
+            case Keyword.WAIT_FOR_TURN:
+                return BosOpCode.WAIT_FOR_TURN
+            case Keyword.WAIT_FOR_MOVE:
+                return BosOpCode.WAIT_FOR_MOVE
+            case Keyword.SET:
+                return BosOpCode.SET
+            case Keyword.GET:
+                return BosOpCode.GET
+            case Keyword.CALL_SCRIPT:
+                return BosOpCode.CALL_SCRIPT
+            case Keyword.START_SCRIPT:
+                return BosOpCode.START_SCRIPT
+            case Keyword.EMIT_SFX:
+                return BosOpCode.EMIT_SFX
+            case Keyword.SLEEP:
+                return BosOpCode.SLEEP
+            case Keyword.HIDE:
+                return BosOpCode.HIDE
+            case Keyword.SHOW:
+                return BosOpCode.SHOW
+            case Keyword.EXPLODE:
+                return BosOpCode.EXPLODE
+            case Keyword.SIGNAL:
+                return BosOpCode.SIGNAL
+            case Keyword.SET_SIGNAL_MASK:
+                return BosOpCode.SET_SIGNAL_MASK
+            case Keyword.ATTACH_UNIT:
+                return BosOpCode.ATTACH_UNIT
+            case Keyword.DROP_UNIT:
+                return BosOpCode.DROP_UNIT
+            case Keyword.RETURN:
+                return BosOpCode.RETURN
+            case Keyword.CACHE:
+                return BosOpCode.CACHE
+            case Keyword.DONT_CACHE:
+                return BosOpCode.DONT_CACHE
+            case Keyword.DONT_SHADOW:
+                return BosOpCode.DONT_SHADE
+            case Keyword.DONT_SHADE:
+                return BosOpCode.DONT_SHADE
+            case Keyword.PLAY_SOUND:
+                return BosOpCode.PLAY_SOUND
+        return None
 
 if __name__ == '__main__':
-    print([*OpCode])
+    print([*BosOpCode])

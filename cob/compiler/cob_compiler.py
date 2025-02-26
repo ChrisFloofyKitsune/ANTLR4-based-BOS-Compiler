@@ -2,9 +2,8 @@ from array import array
 from functools import singledispatchmethod
 
 from bos import ast_nodes as nodes
-from cob.opcodes import OpCode
 from cob.compiler.name_registry import NameRegistry
-
+from cob.opcodes import BosOpCode
 
 class CobCompiler:
     def __init__(self, /, raise_exception_on_unhandled_node=True):
@@ -36,7 +35,7 @@ class CobCompiler:
             raise NotImplementedError(
                 f'INTERNAL COMPILER ERROR: Node of type {node.node_name} does not have a handler!'
             )
-        print(f'TODO: handle {node.node_name}')
+        print(f'TODO: handle {node.node_name} AST Node')
 
     @_handle_node.register(list)
     def _handle_node__list(self, node_list: list[nodes.ASTNode]):
@@ -66,13 +65,13 @@ class CobCompiler:
 
         for arg in func_decl.args:
             self.name_registry.register(arg, NameRegistry.NameType.ARG)
-            self.code.append(OpCode.CREATE_LOCAL_VAR)
+            self.code.append(BosOpCode.CREATE_LOCAL_VAR)
 
         self._handle_node(func_decl.block)
 
         # add return at end of it's missing
         if len(func_decl.block) == 0 or not isinstance(func_decl.block[-1], nodes.ReturnStatement):
-            self.code.extend([OpCode.PUSH_CONSTANT, 0, OpCode.RETURN])
+            self.code.extend([BosOpCode.PUSH_CONSTANT, 0, BosOpCode.RETURN])
 
     @_handle_node.register
     def _handle_node__statement_block(self, block: nodes.StatementBlock):
@@ -81,6 +80,8 @@ class CobCompiler:
 
     # ==== statements ====
     # keywordStatement
+    #   callStatement
+    #   startStatement
     # varStatement
     # ifStatement
     # whileStatement
@@ -90,7 +91,20 @@ class CobCompiler:
 
     @_handle_node.register
     def _handle_node__keyword_statement(self, keyword_statement: nodes.KeywordStatement):
-        print("TODO: handle keyword statement")
+        if keyword_statement.keyword == nodes.Keyword.PLAY_SOUND:
+            raise NotImplementedError("PLAY_SOUND statement is not supported")
+        
+        print('keyword', keyword_statement.keyword.name)
+        for i, arg in enumerate(keyword_statement.args):
+            print('arg', i, arg.model_dump() if arg is not None else "null")
+
+    @_handle_node.register
+    def _handle_node__call_statement(self, call_statement: nodes.CallStatement):
+        print("TODO: handle call statement")
+
+    @_handle_node.register
+    def _handle_node__start_statement(self, start_statement: nodes.StartStatement):
+        print("TODO: handle start statement")
 
     @_handle_node.register
     def _handle_node__var_statement(self, var_statement: nodes.VarStatement):
@@ -117,6 +131,6 @@ class CobCompiler:
         if return_statement.expression is not None:
             self._handle_node(return_statement.expression)
         else:
-            self.code.extend([OpCode.PUSH_CONSTANT, 0])
+            self.code.extend([BosOpCode.PUSH_CONSTANT, 0])
 
-        self.code.append(OpCode.RETURN)
+        self.code.append(BosOpCode.RETURN)
