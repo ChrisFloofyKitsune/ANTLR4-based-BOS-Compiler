@@ -1,11 +1,17 @@
 from array import array
 from functools import singledispatchmethod
+from typing import cast, ClassVar
 
 from bos import ast_nodes as nodes
+from bos2cob_py3 import LINEAR_SCALE, ANGULAR_SCALE
 from cob.compiler.name_registry import NameRegistry
-from cob.opcodes import BosOpCode
+from cob.opcodes import CobOpCode
+
 
 class CobCompiler:
+    LINEAR_SCALE: ClassVar[int] = 65536
+    ANGULAR_SCALE: ClassVar[int] = 182
+
     def __init__(self, /, raise_exception_on_unhandled_node=True):
         self.raise_exception_on_unhandled_node = raise_exception_on_unhandled_node
 
@@ -13,7 +19,7 @@ class CobCompiler:
         self.function_code_indices: dict[nodes.FuncName, int] | None = None
         self.code: array | None = None
 
-    def __load_global_names(self, file_node: nodes.File):
+    def _load_global_names(self, file_node: nodes.File):
         assert self.name_registry is not None, 'name_registry has not been initialized!'
         assert len(self.name_registry) == 0, 'names have already been loaded!'
 
@@ -52,9 +58,9 @@ class CobCompiler:
     def _handle_node__file(self, file_node: nodes.File):
         self.name_registry = NameRegistry()
         self.function_code_indices = dict()
-        self.code = array('L')
+        self.code = array('l')
 
-        self.__load_global_names(file_node)
+        self._load_global_names(file_node)
         for decl in file_node:
             self._handle_node(decl)
 
@@ -65,13 +71,13 @@ class CobCompiler:
 
         for arg in func_decl.args:
             self.name_registry.register(arg, NameRegistry.NameType.ARG)
-            self.code.append(BosOpCode.CREATE_LOCAL_VAR)
+            self.code.append(CobOpCode.CREATE_LOCAL_VAR)
 
         self._handle_node(func_decl.block)
 
         # add return at end of it's missing
         if len(func_decl.block) == 0 or not isinstance(func_decl.block[-1], nodes.ReturnStatement):
-            self.code.extend([BosOpCode.PUSH_CONSTANT, 0, BosOpCode.RETURN])
+            self.code.extend([CobOpCode.PUSH_CONSTANT, 0, CobOpCode.RETURN])
 
     @_handle_node.register
     def _handle_node__statement_block(self, block: nodes.StatementBlock):
@@ -91,12 +97,36 @@ class CobCompiler:
 
     @_handle_node.register
     def _handle_node__keyword_statement(self, keyword_statement: nodes.KeywordStatement):
-        if keyword_statement.keyword == nodes.Keyword.PLAY_SOUND:
+        keyword = keyword_statement.keyword
+        if keyword == nodes.Keyword.PLAY_SOUND:
             raise NotImplementedError("PLAY_SOUND statement is not supported")
-        
-        print('keyword', keyword_statement.keyword.name)
-        for i, arg in enumerate(keyword_statement.args):
-            print('arg', i, arg.model_dump() if arg is not None else "null")
+
+        # Get call done purely for side effects, remove the result from the stack
+        if keyword == nodes.Keyword.GET:
+            self._handle_node(keyword_statement.args[0])
+            self.code.append(CobOpCode.POP_STACK)
+            return
+
+        args = keyword_statement.args
+        kw_op_code = CobOpCode.from_keyword(keyword_statement.keyword)
+        if keyword in (nodes.Keyword.MOVE, nodes.Keyword.TURN) and args[-1] is None:
+            match keyword:
+                case nodes.Keyword.MOVE:
+                    kw_op_code = CobOpCode.MOVE_NOW
+                case nodes.Keyword.TURN:
+                    kw_op_code = CobOpCode.TURN_NOW
+            args = args[:-1]
+
+        # print(keyword_statement.keyword, kw_op_code.name)
+        post_opcode_vals = []
+        for arg in args:
+            match type(arg):
+                case nodes.PieceName | nodes.FuncName:
+                    post_opcode_vals.append(self.name_registry.get_idx(cast(nodes.NameNode, arg))[0])
+                case nodes.Axis:
+                    post_opcode_vals.append(cast(nodes.Axis, arg).axis.value)
+                case _:
+                    self._handle_node(arg)
 
     @_handle_node.register
     def _handle_node__call_statement(self, call_statement: nodes.CallStatement):
@@ -131,6 +161,21 @@ class CobCompiler:
         if return_statement.expression is not None:
             self._handle_node(return_statement.expression)
         else:
-            self.code.extend([BosOpCode.PUSH_CONSTANT, 0])
+            self.code.extend([CobOpCode.PUSH_CONSTANT, 0])
 
-        self.code.append(BosOpCode.RETURN)
+        self.code.append(CobOpCode.RETURN)
+
+    # expressions
+
+    # constants
+    @_handle_node.register
+    def _handle_node__constant(self, constant: nodes.Constant):
+        match constant.const_type:
+            case 'linear':
+                value = LINEAR_SCALE * constant.number_value
+            case 'angular':
+                value = ANGULAR_SCALE * constant.number_value
+            case _:
+                value = constant.number_value
+        # print(constant.model_dump(), value)
+        self.code.extend((CobOpCode.PUSH_CONSTANT, int(value)))

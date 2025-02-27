@@ -1,15 +1,8 @@
-from collections import defaultdict
-
-import itertools
 import json
-from antlr4.CommonTokenStream import CommonTokenStream
-from antlr4.InputStream import InputStream
 from antlr4.ParserRuleContext import ParserRuleContext
 from types import SimpleNamespace
 
 import bos.ast_nodes as nodes
-from bos.ast_nodes import PieceDeclaration, StaticVarDeclaration, FuncDeclaration
-from bos.gen.BosLexer import BosLexer
 from bos.gen.BosParser import BosParser
 from bos.gen.BosParserVisitor import BosParserVisitor
 
@@ -65,8 +58,8 @@ class ASTVisitor(BosParserVisitor):
 
     def visitConstant(self, ctx: BosParser.ConstantContext):
         return nodes.Constant(value=ctx.getText(), parser_node=ctx)
-    
-    def visitConstIntTerm(self, ctx:BosParser.ConstIntTermContext):
+
+    def visitConstIntTerm(self, ctx: BosParser.ConstIntTermContext):
         return nodes.Constant(value=ctx.getText(), parser_node=ctx)
 
     def visitAxis(self, ctx: BosParser.AxisContext):
@@ -108,7 +101,7 @@ class ASTVisitor(BosParserVisitor):
 
         if (expr_list_ctx := ctx.getChild(0, BosParser.ExpressionListContext)) is not None:
             args.extend(self.visit(expr_list_ctx))
-        
+
         statement_class = nodes.KeywordStatement
         if keyword == nodes.Keyword.CALL_SCRIPT:
             statement_class = nodes.CallStatement
@@ -195,16 +188,16 @@ class ASTVisitor(BosParserVisitor):
             expression=self.visit(ctx.expression()),
             parser_node=ctx
         )
-    
-    def visitReturnStatement(self, ctx:BosParser.ReturnStatementContext):
+
+    def visitReturnStatement(self, ctx: BosParser.ReturnStatementContext):
         return nodes.ReturnStatement(
-            expression=self.visit(ctx.expression()),
+            expression=self.visit(ctx.expression()) if ctx.expression() is not None else None,
             parser_node=ctx
         )
-    
-    def visitEmptyStatement(self, ctx:BosParser.EmptyStatementContext):
+
+    def visitEmptyStatement(self, ctx: BosParser.EmptyStatementContext):
         return nodes.EmptyStatement(parser_node=ctx)
-    
+
     def visitFile(self, ctx: BosParser.FileContext):
         return nodes.File(
             declarations=self.visitTypedChildren(ctx, BosParser.DeclarationContext),
@@ -234,8 +227,8 @@ class ASTVisitor(BosParserVisitor):
             var_name=self.visit(ctx.varName()),
             parser_node=ctx
         )
-    
-    def visitGetCall(self, ctx:BosParser.GetCallContext):
+
+    def visitGetCall(self, ctx: BosParser.GetCallContext):
         return nodes.GetCall(
             value_idx=self.visit(ctx.value_idx),
             args=self._extract_args(ctx),
@@ -244,19 +237,11 @@ class ASTVisitor(BosParserVisitor):
 
 
 def main():
-    with open('preprocessed/legmed.preprocessed.bos', 'rt', encoding='utf8') as file:
-        str_data = file.read()
+    from bos_loader import BosLoader
+    loader = BosLoader('example_files/Units/legmed.bos')
+    loader.load_file()
 
-    input_stream = InputStream(str_data)
-    lexer = BosLexer(input_stream)
-    tokens = CommonTokenStream(lexer)
-    parser = BosParser(tokens)
-
-    token_tree: BosParser.FileContext = parser.file_()
-    # print(token_tree.toStringTree(recog=parser))
-    visitor = ASTVisitor()
-
-    ast: nodes.ASTNode = visitor.visit(token_tree)
+    ast: nodes.ASTNode = loader.ast_node_tree
     print(
         json.dumps(
             ast.model_dump(),

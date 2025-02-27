@@ -142,7 +142,8 @@ expression
     : L_PAREN expression R_PAREN                                                #parenExpr
     | constTerm                                                                 #constTermExpr
     | varyingTerm                                                               #varyingTermExpr
-    | op=(OP_MINUS | LOGICAL_NOT) operand=expression                            #unaryExpr
+//    | op=(OP_MINUS | LOGICAL_NOT) operand=expression                            #unaryExpr
+    | op=LOGICAL_NOT operand=expression                                         #unaryExpr
     | operand1=expression op=(OP_MULT | OP_DIV | OP_MOD) operand2=expression    #binaryExpr
     | operand1=expression op=(OP_ADD | OP_MINUS) operand2=expression            #binaryExpr
     | operand1=expression                                                       

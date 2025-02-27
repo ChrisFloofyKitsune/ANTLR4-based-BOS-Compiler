@@ -1,4 +1,5 @@
 import os.path
+import traceback
 
 import sys
 from pathlib import Path
@@ -48,7 +49,7 @@ ______________________________________________
                 sys.stderr.flush()
             except BaseException as err:
                 print(f'Error parsing {bos_filepath}')
-                print(err)
+                traceback.print_exception(type(err), err, err.__traceback__)
                 continue
 
 

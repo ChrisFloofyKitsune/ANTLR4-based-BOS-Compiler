@@ -1,9 +1,9 @@
 from enum import IntEnum
 
-from bos.ast_nodes import Keyword
+from bos.ast_nodes import Keyword, ExpressionOp
 
 
-class BosOpCode(IntEnum):
+class CobOpCode(IntEnum):
     MOVE = 0x10001000
     TURN = 0x10002000
     SPIN = 0x10003000
@@ -79,56 +79,96 @@ class BosOpCode(IntEnum):
     def from_keyword(cls, keyword: Keyword):
         match keyword:
             case Keyword.TURN:
-                return BosOpCode.TURN
+                return CobOpCode.TURN
             case Keyword.MOVE:
-                return BosOpCode.MOVE
+                return CobOpCode.MOVE
             case Keyword.SPIN:
-                return BosOpCode.SPIN
+                return CobOpCode.SPIN
             case Keyword.STOP_SPIN:
-                return BosOpCode.STOP_SPIN
+                return CobOpCode.STOP_SPIN
             case Keyword.WAIT_FOR_TURN:
-                return BosOpCode.WAIT_FOR_TURN
+                return CobOpCode.WAIT_FOR_TURN
             case Keyword.WAIT_FOR_MOVE:
-                return BosOpCode.WAIT_FOR_MOVE
+                return CobOpCode.WAIT_FOR_MOVE
             case Keyword.SET:
-                return BosOpCode.SET
+                return CobOpCode.SET
             case Keyword.GET:
-                return BosOpCode.GET
+                return CobOpCode.GET
             case Keyword.CALL_SCRIPT:
-                return BosOpCode.CALL_SCRIPT
+                return CobOpCode.CALL_SCRIPT
             case Keyword.START_SCRIPT:
-                return BosOpCode.START_SCRIPT
+                return CobOpCode.START_SCRIPT
             case Keyword.EMIT_SFX:
-                return BosOpCode.EMIT_SFX
+                return CobOpCode.EMIT_SFX
             case Keyword.SLEEP:
-                return BosOpCode.SLEEP
+                return CobOpCode.SLEEP
             case Keyword.HIDE:
-                return BosOpCode.HIDE
+                return CobOpCode.HIDE
             case Keyword.SHOW:
-                return BosOpCode.SHOW
+                return CobOpCode.SHOW
             case Keyword.EXPLODE:
-                return BosOpCode.EXPLODE
+                return CobOpCode.EXPLODE
             case Keyword.SIGNAL:
-                return BosOpCode.SIGNAL
+                return CobOpCode.SIGNAL
             case Keyword.SET_SIGNAL_MASK:
-                return BosOpCode.SET_SIGNAL_MASK
+                return CobOpCode.SET_SIGNAL_MASK
             case Keyword.ATTACH_UNIT:
-                return BosOpCode.ATTACH_UNIT
+                return CobOpCode.ATTACH_UNIT
             case Keyword.DROP_UNIT:
-                return BosOpCode.DROP_UNIT
+                return CobOpCode.DROP_UNIT
             case Keyword.RETURN:
-                return BosOpCode.RETURN
+                return CobOpCode.RETURN
             case Keyword.CACHE:
-                return BosOpCode.CACHE
+                return CobOpCode.CACHE
             case Keyword.DONT_CACHE:
-                return BosOpCode.DONT_CACHE
+                return CobOpCode.DONT_CACHE
             case Keyword.DONT_SHADOW:
-                return BosOpCode.DONT_SHADE
+                return CobOpCode.DONT_SHADE
             case Keyword.DONT_SHADE:
-                return BosOpCode.DONT_SHADE
+                return CobOpCode.DONT_SHADE
             case Keyword.PLAY_SOUND:
-                return BosOpCode.PLAY_SOUND
+                return CobOpCode.PLAY_SOUND
         return None
-
+    
+    @classmethod
+    def from_binary_expression_op(cls, op: ExpressionOp):
+        match op:
+            case ExpressionOp.MULT:
+                return CobOpCode.MUL
+            case ExpressionOp.DIV:
+                return CobOpCode.DIV
+            case ExpressionOp.MOD:
+                return CobOpCode.MOD
+            case ExpressionOp.ADD:
+                return CobOpCode.ADD
+            case ExpressionOp.MINUS:
+                return CobOpCode.SUB
+            case ExpressionOp.COMP_LESS:
+                return CobOpCode.SET_LESS
+            case ExpressionOp.COMP_LESS_EQUAL:
+                return CobOpCode.SET_LESS_OR_EQUAL
+            case ExpressionOp.COMP_GREATER:
+                return CobOpCode.SET_GREATER
+            case ExpressionOp.COMP_GREATER_EQUAL:
+                return CobOpCode.SET_GREATER_OR_EQUAL
+            case ExpressionOp.COMP_EQUAL:
+                return CobOpCode.SET_EQUAL
+            case ExpressionOp.COMP_NOT_EQUAL:
+                return CobOpCode.SET_NOT_EQUAL
+            case ExpressionOp.BITWISE_AND:
+                return CobOpCode.BITWISE_AND
+            case ExpressionOp.BITWISE_OR:
+                return CobOpCode.BITWISE_OR
+            case ExpressionOp.BITWISE_XOR:
+                return CobOpCode.BITWISE_XOR
+            case ExpressionOp.LOGICAL_AND:
+                return CobOpCode.LOGICAL_AND
+            case ExpressionOp.LOGICAL_OR:
+                return CobOpCode.LOGICAL_OR
+            case ExpressionOp.LOGICAL_XOR:
+                return CobOpCode.LOGICAL_XOR
+            case ExpressionOp.LOGICAL_NOT:
+                return CobOpCode.LOGICAL_NOT
+            
 if __name__ == '__main__':
-    print([*BosOpCode])
+    print([*CobOpCode])

@@ -212,9 +212,9 @@ class Constant(ValueNode):
 
 
 class AxisEnum(Enum):
-    X = 1
-    Y = 2
-    Z = 3
+    X = 0
+    Y = 1
+    Z = 2
 
     @staticmethod
     def from_str(string: str):
@@ -392,6 +392,18 @@ class FuncDeclaration(Declaration):
 
 class File(ASTNode):
     declarations: list[Declaration]
+
+    @property
+    def piece_declarations(self):
+        return [d for d in self.declarations if isinstance(d, PieceDeclaration)]
+    
+    @property
+    def static_var_declarations(self):
+        return [d for d in self.declarations if isinstance(d, StaticVarDeclaration)]
+    
+    @property
+    def function_declarations(self):
+        return [d for d in self.declarations if isinstance(d, FuncDeclaration)]
 
     def value(self):
         return SimpleNamespace(

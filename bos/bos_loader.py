@@ -1,9 +1,12 @@
 from os import PathLike
 
+import antlr4.error.ErrorListener
 import os
 import pcpp
+from antlr4 import Parser
 from antlr4.CommonTokenStream import CommonTokenStream
 from antlr4.InputStream import InputStream
+from antlr4.Token import CommonToken
 from io import StringIO
 from pathlib import Path
 
@@ -11,10 +14,16 @@ from bos import ast_nodes
 from bos.ast_visitor import ASTVisitor
 from bos.gen.BosLexer import BosLexer
 from bos.gen.BosParser import BosParser
+from cob.compiler.code_error import CodeError
 from unit_value_nums import UnitValue
 
 
 class BosLoader:
+    class ErrorListener(antlr4.error.ErrorListener.ErrorListener):
+        def syntaxError(self, recognizer: Parser, offendingSymbol: CommonToken, line, column, msg, e):
+            token_stream = recognizer.getTokenStream()
+            raise CodeError.from_token(msg, offendingSymbol, token_stream)
+
     def __init__(
         self,
         bos_file_path: str | PathLike[str],
@@ -33,7 +42,7 @@ class BosLoader:
         self.bos_lexer: BosLexer | None = None
 
         self.parser_node_tree: BosParser.FileContext | None = None
-        self.ast_mode_tree: ast_nodes.File | None = None
+        self.ast_node_tree: ast_nodes.File | None = None
 
     def _setup_preprocessor(self, force_reload=False):
         if self.preprocessor is not None and not force_reload:
@@ -76,14 +85,19 @@ class BosLoader:
         self.bos_lexer = BosLexer(InputStream(self.preprocessed_file_contents))
         self.token_stream = CommonTokenStream(self.bos_lexer)
         self.bos_parser = BosParser(self.token_stream)
+
+        self.bos_parser.addErrorListener(self.ErrorListener())
+
         self.parser_node_tree = self.bos_parser.file_()
+        if self.bos_parser.getNumberOfSyntaxErrors() > 0:
+            raise ValueError('Syntax errors found in preprocessed file')
 
     def _run_ast_conversion(self, force_reload=False):
-        if self.ast_mode_tree is not None and not force_reload:
+        if self.ast_node_tree is not None and not force_reload:
             return
 
         ast_visitor = ASTVisitor()
-        self.ast_mode_tree = ast_visitor.visitFile(self.parser_node_tree)
+        self.ast_node_tree = ast_visitor.visitFile(self.parser_node_tree)
 
     def load_file(self, force_reload=False) -> ast_nodes.File:
         self._load_file_contents(force_reload)
@@ -92,7 +106,7 @@ class BosLoader:
         self._run_parser(force_reload)
         self._run_ast_conversion(force_reload)
 
-        return self.ast_mode_tree
+        return self.ast_node_tree
 
     def dump_preprocessed_file(self, destination: str | PathLike[str] = None):
         if self.preprocessed_file_contents is None:
