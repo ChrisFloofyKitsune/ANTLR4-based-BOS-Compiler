@@ -1,8 +1,10 @@
 from array import array
+from copy import copy
 from functools import singledispatchmethod
 from typing import cast
 
 from bos import ast_nodes as nodes
+from cob.cob_file import CobFile
 from cob.compiler.name_registry import NameRegistry
 from cob.opcodes import CobOpCode
 from code_error import CodeError
@@ -16,6 +18,16 @@ class CobCompiler:
         self.name_registry: NameRegistry | None = None
         self.function_code_indices: dict[nodes.FuncName, int] | None = None
         self.code: array | None = None
+
+    def compile_file_ast(self, file_node: nodes.File):
+        self._handle_node(file_node)
+
+        return CobFile(
+            static_var_count=len(self.name_registry.get_name_strings(NameRegistry.NameType.STATIC)),
+            code=copy(self.code),
+            piece_names=self.name_registry.get_name_strings(NameRegistry.NameType.PIECE),
+            function_map={func_name.name: idx for func_name, idx in self.function_code_indices.items()}
+        )
 
     def _load_global_names(self, file_node: nodes.File):
         assert self.name_registry is not None, 'name_registry has not been initialized!'
@@ -115,14 +127,26 @@ class CobCompiler:
                     kw_op_code = CobOpCode.TURN_NOW
             args = args[:-1]
 
+        # COB, why are you like this?
+        # Need to swap the arg order for these keywords because
+        # "The COB emulator in Recoil was created via reverse engineering or something"
+        # reasons
+        if keyword in (nodes.Keyword.SET, nodes.Keyword.ATTACH_UNIT):
+            # yes, this will get reversed again in a moment
+            args = args[::-1]
+
         # print(keyword_statement.keyword, kw_op_code.name)
         post_opcode_vals = []
-        for arg in args:
+
+        # Iterate backwards because we're building a Stack (FILO), not a Queue (FIFO)
+        for arg in args[::-1]:
             match arg:
                 case _ if isinstance(arg, nodes.NameNode):
-                    post_opcode_vals.append(self.name_registry.get_idx(cast(nodes.NameNode, arg))[0])
+                    post_opcode_vals.insert(0, self.name_registry.get_idx(cast(nodes.NameNode, arg))[0])
                 case _ if isinstance(arg, nodes.Axis):
-                    post_opcode_vals.append(cast(nodes.Axis, arg).axis.value)
+                    post_opcode_vals.insert(0, cast(nodes.Axis, arg).axis.value)
+                case _ if arg is None:
+                    self._handle_node(nodes.Constant(0))
                 case _:
                     self._handle_node(arg)
 
@@ -146,7 +170,12 @@ class CobCompiler:
             self._handle_node(arg)
 
         self.code.append(CobOpCode.from_keyword(statement.keyword))
-        self.code.append(self.name_registry.get_idx(statement.args[0])[1])
+        if not isinstance(func_name := statement.args[0], nodes.NameNode):
+            raise CodeError(
+                f'Expected a function name, got {func_name.node_name}',
+                CodeLocation.from_parser_node(statement.parser_node)
+            )
+        self.code.append(self.name_registry.get_idx(func_name)[0])
         self.code.append(len(statement.args) - 1)
 
     @_handle_node.register
@@ -238,7 +267,6 @@ class CobCompiler:
     @_handle_node.register
     def _handle_node__var_name_term(self, term: nodes.VarNameTerm):
         idx, var_type = self.name_registry.get_idx(term.var_name)
-        self.code.append(idx)
         match var_type:
             case NameRegistry.NameType.STATIC:
                 self.code.append(CobOpCode.PUSH_STATIC)
@@ -246,6 +274,7 @@ class CobCompiler:
                 self.code.append(CobOpCode.PUSH_LOCAL_VAR)
             case NameRegistry.NameType.PIECE | NameRegistry.NameType.FUNCTION:
                 self.code.append(CobOpCode.PUSH_CONSTANT)  # the value to use is literally the index
+        self.code.append(idx)
 
     @_handle_node.register
     def _handle_node__rand_term(self, rand: nodes.RandTerm):
@@ -261,10 +290,9 @@ class CobCompiler:
     def _handle_node__get_call(self, get_call: nodes.GetCall):
         self._handle_node(get_call.value_idx)
 
-        if len(get_call.args) > 0:
-            for idx in range(4):
-                arg = get_call.args[idx] if idx < len(get_call.args) else nodes.Constant(0)
-                self._handle_node(arg)
+        if any(arg is not None for arg in get_call.args):
+            for arg in get_call.args:
+                self._handle_node(arg) if arg is not None else nodes.Constant(0)
             self.code.append(CobOpCode.GET)
         else:
             self.code.append(CobOpCode.GET_UNIT_VALUE)

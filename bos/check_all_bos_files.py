@@ -11,7 +11,7 @@ from cob.compiler.cob_compiler import CobCompiler
 
 
 def main():
-    examples_dir = Path('./example_files')
+    examples_dir = Path('./example_files/Units')
     preprocessed_dir = Path('./preprocessed')
     preprocessed_dir.mkdir(exist_ok=True)
 
@@ -34,7 +34,7 @@ ______________________________________________
                 filepath = root.joinpath(bos_filepath)
                 print(f'======== PARSING: {filepath} =============', flush=True)
 
-                loader = BosLoader(filepath, [examples_dir])
+                loader = BosLoader(filepath, [examples_dir], enable_constant_folding=True)
                 loader.dump_preprocessed_file(preprocessed_dir)
                 file_ast = loader.load_file()
                 format_str = 'PARSED: {} | Referenced Pieces: {} | Static Vars: {} | Functions: {}'

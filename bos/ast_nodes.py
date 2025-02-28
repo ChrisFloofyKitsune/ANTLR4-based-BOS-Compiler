@@ -1,11 +1,13 @@
 import sys
 from abc import ABC, abstractmethod
-from antlr4 import ParserRuleContext
 from collections.abc import Generator
 from enum import Enum
-from pydantic import BaseModel, computed_field, model_serializer
+from math import floor
 from types import SimpleNamespace
 from typing import Literal, Any, Union, ClassVar
+
+from antlr4 import ParserRuleContext
+from pydantic import BaseModel, computed_field, model_serializer
 
 from bos.gen.BosParser import BosParser
 from code_error import CodeError
@@ -221,7 +223,7 @@ class Constant(ValueNode):
 
     def int32_value(self) -> int:
         number_value = self.number_value()
-        int_value = int(number_value)
+        int_value = int(round(number_value))
         if int_value > 0xFFFF_FFFF or int_value < -0x8000_0000:
             raise CodeError(
                 f'{"Overflow" if int_value > 0 else "Underflow"} error compiling constant {self.model_dump()}. '
@@ -255,12 +257,13 @@ class AxisEnum(Enum):
 
     @staticmethod
     def from_str(string: str):
-        if 'x' in string or 'X' in string:
-            return AxisEnum.X
-        if 'y' in string or 'Y' in string:
-            return AxisEnum.Y
-        if 'z' in string or 'Z' in string:
-            return AxisEnum.Z
+        match string[0].lower():
+            case 'x':
+                return AxisEnum.X
+            case 'y':
+                return AxisEnum.Y
+            case 'z':
+                return AxisEnum.Z
 
         return None
 
@@ -460,7 +463,7 @@ class VaryingTerm(ValueNode, ABC):
 
 class GetCall(ASTNode):
     value_idx: Expression | ValueNode
-    args: list[Expression | ValueNode]
+    args: list[Expression | ValueNode | None]
 
     def value(self) -> Any:
         if len(self.args) == 0:

@@ -1,7 +1,8 @@
 import json
 import operator
-from antlr4.ParserRuleContext import ParserRuleContext
 from types import SimpleNamespace
+
+from antlr4.ParserRuleContext import ParserRuleContext
 
 import bos.ast_nodes as nodes
 from bos.gen.BosParser import BosParser
@@ -173,8 +174,9 @@ class ASTVisitor(BosParserVisitor):
     def _extract_args(self, ctx):
         args = []
         for attr in dir(ctx):
-            if attr.startswith('arg') and (arg_ctx := getattr(ctx, attr, None)) is not None:
-                args.append(self.visit(arg_ctx))
+            if attr.startswith('arg'):
+                arg_ctx = getattr(ctx, attr)
+                args.append(self.visit(arg_ctx) if arg_ctx is not None else None)
         return args
 
     def visitKeywordStatement(self, ctx: BosParser.KeywordStatementContext):

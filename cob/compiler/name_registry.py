@@ -86,8 +86,11 @@ class NameRegistry:
     def get_names(self):
         return self.__lookup_dict.copy()
 
-    def get_names_by_type(self, name_type: NameType):
+    def get_names_by_type(self, name_type: NameType) -> dict[nodes.NameNode, int]:
         return self.__backing_dict[name_type].copy()
+    
+    def get_name_strings(self, *name_types: NameType):
+        return [n.name for n, _, t in self if t in name_types]
 
     def __len__(self):
         return len(self.__lookup_dict)
