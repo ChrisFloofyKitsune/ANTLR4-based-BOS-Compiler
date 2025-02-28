@@ -98,7 +98,6 @@ class ASTVisitor(BosParserVisitor):
         return nodes.ArgName(name=ctx.getText(), parser_node=ctx)
 
     def visitUnaryExpr(self, ctx: BosParser.UnaryExprContext):
-
         op = nodes.ExpressionOp(ctx.op.type)
         operand = self.visit(ctx.operand)
 
@@ -115,7 +114,6 @@ class ASTVisitor(BosParserVisitor):
         )
 
     def visitBinaryExpr(self, ctx: BosParser.BinaryExprContext):
-
         op = nodes.ExpressionOp(ctx.op.type)
         operand1 = self.visit(ctx.operand1)
         operand2 = self.visit(ctx.operand2)
@@ -134,9 +132,9 @@ class ASTVisitor(BosParserVisitor):
             )
 
         return nodes.BinaryExpression(
-            operand1=self.visit(ctx.operand1),
-            op=nodes.ExpressionOp(ctx.op.type),
-            operand2=self.visit(ctx.operand2),
+            operand1=operand1,
+            op=op,
+            operand2=operand2,
             parser_node=ctx
         )
 
