@@ -11,7 +11,7 @@ from bos.gen.BosParserVisitor import BosParserVisitor
 class ASTVisitor(BosParserVisitor):
 
     UNARY_OP_FUNC_MAPPING = {
-        BosParser.LOGICAL_NOT: lambda a: int(not bool(a))
+        nodes.ExpressionOp.LOGICAL_NOT: lambda a: int(not bool(a))
     }
 
     BINARY_OP_FUNC_MAPPING = {
@@ -294,7 +294,7 @@ class ASTVisitor(BosParserVisitor):
 def main():
     from bos_loader import BosLoader
     loader = BosLoader(
-        'example_files/Units/armaas_clean.bos',
+        'example_files/Units/armestor_clean.bos',
         enable_constant_folding=True
     )
     loader.load_file()
@@ -309,7 +309,7 @@ def main():
     )
 
     loader = BosLoader(
-        'example_files/Units/armaas_clean.bos',
+        'example_files/Units/armestor.bos',
         enable_constant_folding=False
     )
     loader.load_file()
