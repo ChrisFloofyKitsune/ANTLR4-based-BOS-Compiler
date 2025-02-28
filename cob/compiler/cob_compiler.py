@@ -192,7 +192,7 @@ class CobCompiler:
     # For statements are not supported in BOS. :'(
     # @_handle_node.register
     # def _handle_node__for_statement(self, for_statement: nodes.ForStatement):
-    #     print("TODO: handle for statement")
+    #     pass
 
     @_handle_node.register
     def _handle_node__assign_statement(self, assign_statement: nodes.AssignStatement):
