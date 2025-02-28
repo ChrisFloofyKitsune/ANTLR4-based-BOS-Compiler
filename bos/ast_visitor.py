@@ -59,9 +59,6 @@ class ASTVisitor(BosParserVisitor):
     def visitConstant(self, ctx: BosParser.ConstantContext):
         return nodes.Constant(value=ctx.getText(), parser_node=ctx)
 
-    def visitConstIntTerm(self, ctx: BosParser.ConstIntTermContext):
-        return nodes.Constant(value=ctx.getText(), parser_node=ctx)
-
     def visitAxis(self, ctx: BosParser.AxisContext):
         return nodes.Axis(axis=nodes.AxisEnum.from_str(ctx.getText()), parser_node=ctx)
 
@@ -147,14 +144,14 @@ class ASTVisitor(BosParserVisitor):
             parser_node=ctx
         )
 
-    def visitForStatement(self, ctx: BosParser.ForStatementContext):
-        return nodes.ForStatement(
-            initialization=self.visit(ctx.expression(0)),
-            condition=self.visit(ctx.expression(1)),
-            increment=self.visit(ctx.expression(2)),
-            block=self.visit(ctx.statementBlock()),
-            parser_node=ctx
-        )
+    # def visitForStatement(self, ctx: BosParser.ForStatementContext):
+    #     return nodes.ForStatement(
+    #         initialization=self.visit(ctx.expression(0)),
+    #         condition=self.visit(ctx.expression(1)),
+    #         increment=self.visit(ctx.expression(2)),
+    #         block=self.visit(ctx.statementBlock()),
+    #         parser_node=ctx
+    #     )
 
     def visitAssignStatement(self, ctx: BosParser.AssignStatementContext):
         inc_ctx: BosParser.IncStatementContext = ctx.incStatement()
@@ -238,7 +235,7 @@ class ASTVisitor(BosParserVisitor):
 
 def main():
     from bos_loader import BosLoader
-    loader = BosLoader('example_files/Units/legmed.bos')
+    loader = BosLoader('example_files/Units/armaas_clean.bos')
     loader.load_file()
 
     ast: nodes.ASTNode = loader.ast_node_tree

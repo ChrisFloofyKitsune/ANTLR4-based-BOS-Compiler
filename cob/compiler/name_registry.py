@@ -1,9 +1,9 @@
 import enum
-
 from enum import IntEnum
 
 from bos import ast_nodes as nodes
-from cob.compiler.code_error import CodeError
+from code_error import CodeError
+from code_location import CodeLocation
 
 
 class NameRegistry:
@@ -36,10 +36,22 @@ class NameRegistry:
         lookup_result = self.__lookup_dict.get(name, None)
 
         if lookup_result is not None:
-            raise CodeError.from_parser_node(
+            _, existing_name_type = lookup_result
+
+            if (
+                name_type == existing_name_type
+                and name_type in (NameRegistry.NameType.STATIC, NameRegistry.NameType.PIECE)
+            ):
+                print(
+                    f'[WARNING] Duplicate declaration of global name {name_type.description} "{name.name}". Ignoring.',
+                    CodeLocation.from_parser_node(name.parser_node)
+                )
+                return
+
+            raise CodeError(
                 f'invalid declaration of {name_type.description} "{name.name}", '
-                f'name is already being used by a {lookup_result[1].description} declaration',
-                name.parser_node
+                f'name is already being used by a {existing_name_type.description} declaration',
+                CodeLocation.from_parser_node(name.parser_node)
             )
 
         new_idx = len(self.__backing_dict[name_type])
@@ -55,9 +67,9 @@ class NameRegistry:
         result = self.__lookup_dict.get(name, None)
 
         if result is None:
-            raise CodeError.from_parser_node(
+            raise CodeError(
                 f'name "{name.name}" has not been defined',
-                name.parser_node
+                CodeLocation.from_parser_node(name.parser_node)
             )
 
         return result

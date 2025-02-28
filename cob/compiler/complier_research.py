@@ -16,7 +16,7 @@ def __main(file_node: nodes.File):
 
 
 if __name__ == '__main__':
-    loader = BosLoader('../../bos/example_files/Units/legcom.bos')
+    loader = BosLoader('../../bos/example_files/scavs/beacon.bos')
     preproc_dir = Path('preprocessed')
     preproc_dir.mkdir(exist_ok=True)
     loader.dump_preprocessed_file(preproc_dir)

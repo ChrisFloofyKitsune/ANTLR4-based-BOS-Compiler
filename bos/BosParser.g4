@@ -32,7 +32,7 @@ statement
     | varStatement SEMICOLON
     | ifStatement
     | whileStatement
-    | forStatement
+//    | forStatement
     | assignStatement SEMICOLON
     | returnStatement SEMICOLON
     | emptyStatement
@@ -44,7 +44,7 @@ ifStatement : IF L_PAREN expression R_PAREN statementBlock elseBlock?;
 elseBlock   : ELSE statementBlock;
 
 whileStatement  : WHILE L_PAREN expression R_PAREN statementBlock;
-forStatement    : FOR L_PAREN expression SEMICOLON expression SEMICOLON expression SEMICOLON? R_PAREN statementBlock;
+//forStatement    : FOR L_PAREN expression SEMICOLON expression SEMICOLON expression SEMICOLON? R_PAREN statementBlock;
 
 assignStatement
     : varName EQUAL_ASSIGN expression
@@ -93,7 +93,7 @@ keywordStatement
 sleepStatement  : kw=SLEEP arg1=expression;
 
 
-setStatement    : kw=SET arg1=constIntTerm TO arg2=expression;
+setStatement    : kw=SET arg1=expression TO arg2=expression;
 // special "no return" version of get call done for side effects
 getStatement    : kw=GET arg1=getCall;
 
@@ -159,20 +159,19 @@ expression
     ;
 
 constTerm   : constant | L_PAREN constTerm R_PAREN;
-constIntTerm: INT | L_PAREN constIntTerm R_PAREN;
 
 varyingTerm : getTerm | randTerm | varNameTerm;
 getTerm     : GET getCall;
 randTerm    : RAND L_PAREN expression COMMA expression R_PAREN;
 varNameTerm : varName;
 
-getCall: value_idx=constIntTerm | value_idx=constIntTerm L_PAREN arg1=expression arg2=commaExpression? arg3=commaExpression? arg4=commaExpression? R_PAREN;
+getCall: value_idx=expression | value_idx=expression L_PAREN arg1=expression arg2=commaExpression? arg3=commaExpression? arg4=commaExpression? R_PAREN;
 
 constant
     : LINEAR_CONSTANT
     | DEGREES_CONSTANT
-    | INT
-    | FLOAT
+    | '-'? INT
+    | '-'? FLOAT
     ;
 
 

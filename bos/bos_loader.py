@@ -7,6 +7,8 @@ from antlr4 import Parser
 from antlr4.CommonTokenStream import CommonTokenStream
 from antlr4.InputStream import InputStream
 from antlr4.Token import CommonToken
+from antlr4.atn.PredictionMode import PredictionMode
+from antlr4.error.ErrorStrategy import BailErrorStrategy
 from io import StringIO
 from pathlib import Path
 
@@ -14,7 +16,8 @@ from bos import ast_nodes
 from bos.ast_visitor import ASTVisitor
 from bos.gen.BosLexer import BosLexer
 from bos.gen.BosParser import BosParser
-from cob.compiler.code_error import CodeError
+from code_error import CodeError
+from code_location import CodeLocation
 from unit_value_nums import UnitValue
 
 
@@ -22,7 +25,7 @@ class BosLoader:
     class ErrorListener(antlr4.error.ErrorListener.ErrorListener):
         def syntaxError(self, recognizer: Parser, offendingSymbol: CommonToken, line, column, msg, e):
             token_stream = recognizer.getTokenStream()
-            raise CodeError.from_token(msg, offendingSymbol, token_stream)
+            raise CodeError(msg, CodeLocation.from_token(offendingSymbol, token_stream))
 
     def __init__(
         self,
@@ -84,11 +87,26 @@ class BosLoader:
 
         self.bos_lexer = BosLexer(InputStream(self.preprocessed_file_contents))
         self.token_stream = CommonTokenStream(self.bos_lexer)
+
+        # first try with faster, but weaker, parse strategy
         self.bos_parser = BosParser(self.token_stream)
+        self.bos_parser._interp.predictionMode = PredictionMode.SLL
+        self.bos_parser.removeErrorListeners()
+        self.bos_parser._errHandler = BailErrorStrategy()
+        try:
+            self.parser_node_tree = self.bos_parser.file_()
+        except BaseException:
+            print(
+                '[DEBUG] File could not be handled by faster, but weaker, SLL parser, trying again with default LL parser'
+            )
+            # reset and try again
+            self.bos_lexer = BosLexer(InputStream(self.preprocessed_file_contents))
+            self.token_stream = CommonTokenStream(self.bos_lexer)
+            self.bos_parser = BosParser(self.token_stream)
+            self.bos_parser.addErrorListener(self.ErrorListener())
 
-        self.bos_parser.addErrorListener(self.ErrorListener())
+            self.parser_node_tree = self.bos_parser.file_()
 
-        self.parser_node_tree = self.bos_parser.file_()
         if self.bos_parser.getNumberOfSyntaxErrors() > 0:
             raise ValueError('Syntax errors found in preprocessed file')
 

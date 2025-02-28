@@ -72,9 +72,11 @@ class CobOpCode(IntEnum):
     ATTACH_UNIT = 0x10083000
     DROP_UNIT = 0x10084000
 
+    BAD_OP_PLACEHOLDER = -0x8000_0000  # aka: 0xFFFF_FFFF
+
     def __repr__(self):
         return f'<{self.__class__.__name__}.{self.name}: 0x{self:08X}>'
-    
+
     @classmethod
     def from_keyword(cls, keyword: Keyword):
         match keyword:
@@ -129,7 +131,7 @@ class CobOpCode(IntEnum):
             case Keyword.PLAY_SOUND:
                 return CobOpCode.PLAY_SOUND
         return None
-    
+
     @classmethod
     def from_binary_expression_op(cls, op: ExpressionOp):
         match op:
@@ -169,6 +171,17 @@ class CobOpCode(IntEnum):
                 return CobOpCode.LOGICAL_XOR
             case ExpressionOp.LOGICAL_NOT:
                 return CobOpCode.LOGICAL_NOT
-            
+        
+        raise ValueError(f'Invalid / unsupported binary expression op: {op}')
+
+    @classmethod
+    def from_unary_expression_op(cls, op):
+        match op:
+            case ExpressionOp.LOGICAL_NOT:
+                return CobOpCode.LOGICAL_NOT
+        
+        raise ValueError(f'Invalid / unsupported unary expression op: {op}')
+
+
 if __name__ == '__main__':
     print([*CobOpCode])

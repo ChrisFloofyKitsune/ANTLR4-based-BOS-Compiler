@@ -143,15 +143,6 @@ class BosParserListener(ParseTreeListener):
         pass
 
 
-    # Enter a parse tree produced by BosParser#forStatement.
-    def enterForStatement(self, ctx:BosParser.ForStatementContext):
-        pass
-
-    # Exit a parse tree produced by BosParser#forStatement.
-    def exitForStatement(self, ctx:BosParser.ForStatementContext):
-        pass
-
-
     # Enter a parse tree produced by BosParser#assignStatement.
     def enterAssignStatement(self, ctx:BosParser.AssignStatementContext):
         pass
@@ -527,15 +518,6 @@ class BosParserListener(ParseTreeListener):
 
     # Exit a parse tree produced by BosParser#constTerm.
     def exitConstTerm(self, ctx:BosParser.ConstTermContext):
-        pass
-
-
-    # Enter a parse tree produced by BosParser#constIntTerm.
-    def enterConstIntTerm(self, ctx:BosParser.ConstIntTermContext):
-        pass
-
-    # Exit a parse tree produced by BosParser#constIntTerm.
-    def exitConstIntTerm(self, ctx:BosParser.ConstIntTermContext):
         pass
 
 

@@ -84,11 +84,6 @@ class BosParserVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
-    # Visit a parse tree produced by BosParser#forStatement.
-    def visitForStatement(self, ctx:BosParser.ForStatementContext):
-        return self.visitChildren(ctx)
-
-
     # Visit a parse tree produced by BosParser#assignStatement.
     def visitAssignStatement(self, ctx:BosParser.AssignStatementContext):
         return self.visitChildren(ctx)
@@ -296,11 +291,6 @@ class BosParserVisitor(ParseTreeVisitor):
 
     # Visit a parse tree produced by BosParser#constTerm.
     def visitConstTerm(self, ctx:BosParser.ConstTermContext):
-        return self.visitChildren(ctx)
-
-
-    # Visit a parse tree produced by BosParser#constIntTerm.
-    def visitConstIntTerm(self, ctx:BosParser.ConstIntTermContext):
         return self.visitChildren(ctx)
 
 

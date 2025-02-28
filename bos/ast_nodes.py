@@ -85,10 +85,10 @@ class NameNode(ASTNode):
         return f'{self.node_name}(\'{self.name}\')'
 
     def __eq__(self, other):
-        return isinstance(other, NameNode) and self.name == other.name
+        return isinstance(other, NameNode) and self.name.lower() == other.name.lower()
 
     def __hash__(self):
-        return hash(self.name)
+        return hash(self.name.lower())
 
     def __repr__(self):
         return f'{self.node_name}(\'{self.name}\')'
@@ -349,16 +349,19 @@ class WhileStatement(Statement):
         return SimpleNamespace(condition=self.condition, block=self.block)
 
 
-class ForStatement(Statement):
-    initialization: Expression
-    condition: Expression
-    increment: Expression
-    block: StatementBlock
-
-    def value(self):
-        return SimpleNamespace(
-            initialization=self.initialization, condition=self.condition, increment=self.increment, block=self.block
-        )
+# class ForStatement(Statement):
+#     initialization: Expression
+#     condition: Expression
+#     increment: Expression
+#     block: StatementBlock
+#
+#     def value(self):
+#         return SimpleNamespace(
+#             initialization=self.initialization,
+#             condition=self.condition,
+#             increment=self.increment,
+#             block=self.block
+#         )
 
 
 class AssignStatement(Statement):
@@ -419,10 +422,8 @@ class VaryingTerm(ValueNode, ABC):
 
 
 class GetCall(ASTNode):
-    value_idx: Constant
+    value_idx: Expression | ValueNode
     args: list[Expression | ValueNode]
-
-    
 
     def value(self) -> Any:
         if len(self.args) == 0:
