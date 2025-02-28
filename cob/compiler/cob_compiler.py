@@ -1,15 +1,12 @@
 from array import array
 from functools import singledispatchmethod
-from typing import cast, Final
+from typing import cast
 
 from bos import ast_nodes as nodes
-from code_error import CodeError
 from cob.compiler.name_registry import NameRegistry
 from cob.opcodes import CobOpCode
+from code_error import CodeError
 from code_location import CodeLocation
-
-LINEAR_SCALE: Final[int] = 65536
-ANGULAR_SCALE: Final[int] = 182
 
 
 class CobCompiler:
@@ -236,32 +233,7 @@ class CobCompiler:
     # terms
     @_handle_node.register
     def _handle_node__constant(self, constant: nodes.Constant):
-        match constant.const_type:
-            case 'linear':
-                float_value = LINEAR_SCALE * constant.number_value
-            case 'angular':
-                float_value = ANGULAR_SCALE * constant.number_value
-            case _:
-                float_value = constant.number_value
-
-        int_value = int(float_value)
-        if int_value > 0xFFFF_FFFF or int_value < -0x8000_0000:
-            raise CodeError(
-                f'{"Overflow" if int_value > 0 else "Underflow"} error compiling constant {constant.model_dump()}. '
-                f'Computed value (int_value) cannot fit inside a 32bit int',
-                CodeLocation.from_parser_node(constant.parser_node)
-            )
-
-        # force large unsigned ints to fit
-        if int_value > 0x7FFF_FFFF:
-            int_value -= 0x1_0000_0000
-            if isinstance(constant.number_value, float):
-                print(
-                    f'[WARNING] Converted float from {constant.model_dump()} (computed: {float_value}) to very large negative int {int_value}',
-                    CodeLocation.from_parser_node(constant.parser_node)
-                )
-
-        self.code.extend((CobOpCode.PUSH_CONSTANT, int_value))
+        self.code.extend((CobOpCode.PUSH_CONSTANT, constant.int32_value()))
 
     @_handle_node.register
     def _handle_node__var_name_term(self, term: nodes.VarNameTerm):

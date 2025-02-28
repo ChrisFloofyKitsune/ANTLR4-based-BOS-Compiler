@@ -3,12 +3,13 @@ from abc import ABC, abstractmethod
 from antlr4 import ParserRuleContext
 from collections.abc import Generator
 from enum import Enum
-from numbers import Number
 from pydantic import BaseModel, computed_field, model_serializer
 from types import SimpleNamespace
-from typing import Literal, Any, Union
+from typing import Literal, Any, Union, ClassVar
 
 from bos.gen.BosParser import BosParser
+from code_error import CodeError
+from code_location import CodeLocation
 
 
 class ASTNode(BaseModel, ABC):
@@ -140,15 +141,18 @@ class ExpressionOp(Enum):
     MOD = BosParser.OP_MOD
     ADD = BosParser.OP_ADD
     MINUS = BosParser.OP_MINUS
+
     COMP_LESS = BosParser.COMP_LESS
     COMP_LESS_EQUAL = BosParser.COMP_LESS_EQUAL
     COMP_GREATER = BosParser.COMP_GREATER
     COMP_GREATER_EQUAL = BosParser.COMP_GREATER_EQUAL
     COMP_EQUAL = BosParser.COMP_EQUAL
     COMP_NOT_EQUAL = BosParser.COMP_NOT_EQUAL
+
     BITWISE_AND = BosParser.BITWISE_AND
     BITWISE_OR = BosParser.BITWISE_OR
     BITWISE_XOR = BosParser.BITWISE_XOR
+
     LOGICAL_AND = BosParser.LOGICAL_AND
     LOGICAL_OR = BosParser.LOGICAL_OR
     LOGICAL_XOR = BosParser.LOGICAL_XOR
@@ -176,10 +180,13 @@ class BinaryExpression(Expression):
 
 
 class Constant(ValueNode):
-    number_value: int | float
+    LINEAR_SCALE: ClassVar[int] = 65536
+    ANGULAR_SCALE: ClassVar[int] = 182
+
+    base_value: int | float
     const_type: Literal['normal', 'angular', 'linear'] = 'normal'
 
-    def __init__(self, /, value: Number | str, **kwargs):
+    def __init__(self, /, value: float | int | str, **kwargs):
         const_type: Literal['normal', 'angular', 'linear'] = 'normal'
         if isinstance(value, str):
             if value[0] == '[' and value[-1] == ']':
@@ -193,18 +200,48 @@ class Constant(ValueNode):
                 value = int(value, base=16)
             else:
                 value = int(value)
-        super().__init__(**kwargs, number_value=value, const_type=const_type)
+        super().__init__(**kwargs, base_value=value, const_type=const_type)
 
     def __repr__(self):
         if self.const_type == 'normal':
-            return f'Constant({self.number_value})'
+            return f'Constant({self.base_value})'
         if self.const_type == 'angular':
-            return f'Constant(\'<{self.number_value}> degrees\')'
+            return f'Constant(\'<{self.base_value}> degrees\')'
         if self.const_type == 'linear':
-            return f'Constant(\'[{self.number_value}] units\')'
+            return f'Constant(\'[{self.base_value}] units\')'
+
+    def number_value(self) -> int | float:
+        match self.const_type:
+            case 'linear':
+                return self.LINEAR_SCALE * self.base_value
+            case 'angular':
+                return self.ANGULAR_SCALE * self.base_value
+            case _:
+                return self.base_value
+
+    def int32_value(self) -> int:
+        number_value = self.number_value()
+        int_value = int(number_value)
+        if int_value > 0xFFFF_FFFF or int_value < -0x8000_0000:
+            raise CodeError(
+                f'{"Overflow" if int_value > 0 else "Underflow"} error compiling constant {self.model_dump()}. '
+                f'Computed value (int_value) cannot fit inside a 32bit int',
+                CodeLocation.from_parser_node(self.parser_node)
+            )
+
+        # force large unsigned ints to fit
+        if int_value > 0x7FFF_FFFF:
+            int_value -= 0x1_0000_0000
+            if isinstance(self.base_value, float):
+                print(
+                    f'[WARNING] Converted float from {self.model_dump()} (computed: {number_value}) to very large negative int {int_value}',
+                    CodeLocation.from_parser_node(self.parser_node)
+                )
+
+        return int_value
 
     def value(self):
-        return self.number_value, self.const_type
+        return self.base_value, self.const_type
 
     @model_serializer()
     def serialize(self) -> str:
@@ -399,11 +436,11 @@ class File(ASTNode):
     @property
     def piece_declarations(self):
         return [d for d in self.declarations if isinstance(d, PieceDeclaration)]
-    
+
     @property
     def static_var_declarations(self):
         return [d for d in self.declarations if isinstance(d, StaticVarDeclaration)]
-    
+
     @property
     def function_declarations(self):
         return [d for d in self.declarations if isinstance(d, FuncDeclaration)]

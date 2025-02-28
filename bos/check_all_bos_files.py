@@ -1,5 +1,4 @@
 import os.path
-import traceback
 
 import sys
 from pathlib import Path
@@ -47,8 +46,7 @@ ______________________________________________
                         len(file_ast.function_declarations)
                     ), flush=True
                 )
-                
-                sys.stderr.flush()
+
                 try:
                     print("*** COMPILING ***")
                     compiler = CobCompiler()
@@ -61,8 +59,6 @@ ______________________________________________
                 sys.stdout.flush()
                 print(f'Error parsing {bos_filepath}', file=sys.stderr, flush=True)
                 print('[ERROR]', str(err), file=sys.stderr, flush=True)
-
-            
 
 
 if __name__ == '__main__':

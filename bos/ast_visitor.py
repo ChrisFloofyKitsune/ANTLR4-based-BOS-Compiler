@@ -1,4 +1,5 @@
 import json
+import operator
 from antlr4.ParserRuleContext import ParserRuleContext
 from types import SimpleNamespace
 
@@ -8,6 +9,37 @@ from bos.gen.BosParserVisitor import BosParserVisitor
 
 
 class ASTVisitor(BosParserVisitor):
+
+    UNARY_OP_FUNC_MAPPING = {
+        BosParser.LOGICAL_NOT: lambda a: int(not bool(a))
+    }
+
+    BINARY_OP_FUNC_MAPPING = {
+        nodes.ExpressionOp.MULT: operator.mul,
+        nodes.ExpressionOp.DIV: operator.truediv,
+        nodes.ExpressionOp.MOD: operator.mod,
+        nodes.ExpressionOp.ADD: operator.add,
+        nodes.ExpressionOp.MINUS: operator.sub,
+
+        nodes.ExpressionOp.COMP_LESS: lambda a, b: int(a < b),
+        nodes.ExpressionOp.COMP_LESS_EQUAL: lambda a, b: int(a <= b),
+        nodes.ExpressionOp.COMP_GREATER: lambda a, b: int(a > b),
+        nodes.ExpressionOp.COMP_GREATER_EQUAL: lambda a, b: int(a >= b),
+        nodes.ExpressionOp.COMP_EQUAL: lambda a, b: int(a == b),
+        nodes.ExpressionOp.COMP_NOT_EQUAL: lambda a, b: int(a != b),
+
+        nodes.ExpressionOp.BITWISE_AND: lambda a, b: int(a) & int(b),
+        nodes.ExpressionOp.BITWISE_OR: lambda a, b: int(a) | int(b),
+        nodes.ExpressionOp.BITWISE_XOR: lambda a, b: int(a) ^ int(b),
+
+        nodes.ExpressionOp.LOGICAL_AND: lambda a, b: int(bool(a) and bool(b)),
+        nodes.ExpressionOp.LOGICAL_OR: lambda a, b: int(bool(a) or bool(b)),
+        nodes.ExpressionOp.LOGICAL_XOR: lambda a, b: int(bool(a) ^ bool(b))
+    }
+
+    def __init__(self, *args, enable_constant_folding=False, **kwargs):
+        self.enable_constant_folding = enable_constant_folding
+        super().__init__(*args, **kwargs)
 
     def aggregateResult(self, aggregate, next_result):
         if next_result is None:
@@ -66,13 +98,41 @@ class ASTVisitor(BosParserVisitor):
         return nodes.ArgName(name=ctx.getText(), parser_node=ctx)
 
     def visitUnaryExpr(self, ctx: BosParser.UnaryExprContext):
+
+        op = nodes.ExpressionOp(ctx.op.type)
+        operand = self.visit(ctx.operand)
+
+        if self.enable_constant_folding and isinstance(operand, nodes.Constant):
+            return nodes.Constant(
+                value=self.UNARY_OP_FUNC_MAPPING[op](operand.number_value()),
+                parser_node=ctx
+            )
+
         return nodes.UnaryExpression(
-            op=nodes.ExpressionOp(ctx.op.type),
-            operand=self.visit(ctx.operand),
+            op=op,
+            operand=operand,
             parser_node=ctx
         )
 
     def visitBinaryExpr(self, ctx: BosParser.BinaryExprContext):
+
+        op = nodes.ExpressionOp(ctx.op.type)
+        operand1 = self.visit(ctx.operand1)
+        operand2 = self.visit(ctx.operand2)
+
+        if (
+            self.enable_constant_folding
+            and isinstance(operand1, nodes.Constant)
+            and isinstance(operand2, nodes.Constant)
+        ):
+            return nodes.Constant(
+                value=self.BINARY_OP_FUNC_MAPPING[op](
+                    operand1.number_value(),
+                    operand2.number_value()
+                ),
+                parser_node=ctx
+            )
+
         return nodes.BinaryExpression(
             operand1=self.visit(ctx.operand1),
             op=nodes.ExpressionOp(ctx.op.type),
@@ -235,14 +295,32 @@ class ASTVisitor(BosParserVisitor):
 
 def main():
     from bos_loader import BosLoader
-    loader = BosLoader('example_files/Units/armaas_clean.bos')
+    loader = BosLoader(
+        'example_files/Units/armaas_clean.bos',
+        enable_constant_folding=True
+    )
     loader.load_file()
 
-    ast: nodes.ASTNode = loader.ast_node_tree
+    ast: nodes.File = loader.ast_node_tree
     print(
         json.dumps(
-            ast.model_dump(),
-            indent=2,
+            ast.function_declarations[-1].block[-2].model_dump(),
+            # indent=2,
+            default=lambda x: vars(x) if isinstance(x, SimpleNamespace) else repr(x)
+        )
+    )
+
+    loader = BosLoader(
+        'example_files/Units/armaas_clean.bos',
+        enable_constant_folding=False
+    )
+    loader.load_file()
+
+    ast: nodes.File = loader.ast_node_tree
+    print(
+        json.dumps(
+            ast.function_declarations[-1].block[-2].model_dump(),
+            # indent=2,
             default=lambda x: vars(x) if isinstance(x, SimpleNamespace) else repr(x)
         )
     )

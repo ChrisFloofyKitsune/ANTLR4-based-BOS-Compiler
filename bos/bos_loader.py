@@ -31,6 +31,8 @@ class BosLoader:
         self,
         bos_file_path: str | PathLike[str],
         include_paths: list[str | PathLike[str]] = None,
+        /,
+        enable_constant_folding=False
     ):
         self.filepath = Path(bos_file_path)
         self.include_paths = [Path(p) for p in include_paths] if include_paths is not None else []
@@ -45,6 +47,7 @@ class BosLoader:
         self.bos_lexer: BosLexer | None = None
 
         self.parser_node_tree: BosParser.FileContext | None = None
+        self.enable_constant_folding = enable_constant_folding
         self.ast_node_tree: ast_nodes.File | None = None
 
     def _setup_preprocessor(self, force_reload=False):
@@ -114,7 +117,7 @@ class BosLoader:
         if self.ast_node_tree is not None and not force_reload:
             return
 
-        ast_visitor = ASTVisitor()
+        ast_visitor = ASTVisitor(enable_constant_folding=self.enable_constant_folding)
         self.ast_node_tree = ast_visitor.visitFile(self.parser_node_tree)
 
     def load_file(self, force_reload=False) -> ast_nodes.File:

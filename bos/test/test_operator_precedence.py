@@ -1,18 +1,15 @@
+import antlr4
 import math
 import operator
 import unittest
-from numbers import Number
-
-import antlr4
 from antlr4 import ParserRuleContext
+from numbers import Number
 
 from bos.gen.BosLexer import BosLexer
 from bos.gen.BosParser import BosParser
 from bos.gen.BosParserVisitor import BosParserVisitor
 
-
 UNARY_OP_FUNC_MAPPING = {
-    BosParser.OP_MINUS: operator.neg,
     BosParser.LOGICAL_NOT: operator.not_
 }
 UNARY_OP_FUNC_MAPPING.setdefault(lambda *args: 0)
@@ -40,6 +37,7 @@ BINARY_OP_FUNC_MAPPING.setdefault(lambda *args: 0)
 
 COB_LINEAR_SCALE = 65536
 COB_ANGULAR_SCALE = COB_LINEAR_SCALE / 2.0 / math.pi
+
 
 class TestOperatorPrecedence(unittest.TestCase):
     def __init__(self, *args, **kwargs):
@@ -85,6 +83,7 @@ class TestOperatorPrecedence(unittest.TestCase):
                 visitor = CalculatorVisitor()
                 result = visitor.visit(expr)
                 self.assertEqual(result, expected)
+
 
 class CalculatorVisitor(BosParserVisitor):
     def visitParenExpr(self, ctx: BosParser.ParenExprContext):
