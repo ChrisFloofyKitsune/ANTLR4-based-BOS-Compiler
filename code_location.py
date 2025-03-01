@@ -1,4 +1,6 @@
+import functools
 import sys
+from functools import total_ordering
 
 from antlr4.BufferedTokenStream import BufferedTokenStream
 from antlr4.Token import CommonToken
@@ -11,6 +13,7 @@ from bos.gen.BosLexer import BosLexer
 from bos.gen.BosParser import BosParser
 
 
+@total_ordering
 @dataclass()
 class CodeLocation:
     start_line: int
@@ -61,3 +64,19 @@ class CodeLocation:
         except Exception as err:
             print(f'WARN: another error occurred while trying to calculate error_loc: {str(err)}', file=sys.stderr)
             return None
+    
+    def _comp_tuple(self) -> tuple[str, int, int, int, int]:
+        return self.source_file, self.start_line, self.start_column, self.end_line, self.end_column
+    
+    def __repr__(self):
+        return f'CodeLocation({self.source_file}, {self.start_line}, {self.start_column}, {self.end_line}, {self.end_column})'
+    
+    def __eq__(self, other):
+        if not isinstance(other, CodeLocation):
+            return NotImplemented
+        return self._comp_tuple() == other._comp_tuple()
+    
+    def __lt__(self, other):
+        if not isinstance(other, CodeLocation):
+            return NotImplemented
+        return self._comp_tuple() < other._comp_tuple()

@@ -22,6 +22,13 @@ from unit_value_nums import UnitValue
 
 
 class BosLoader:
+    class BosPreprocessor(pcpp.Preprocessor):
+        def on_comment(self,tok):
+            return self.include_depth <= 1
+        
+        def on_directive_handle(self,directive,toks,ifpassthru,precedingtoks):
+            return None if self.include_depth <= 1 else True
+    
     class ErrorListener(antlr4.error.ErrorListener.ErrorListener):
         def syntaxError(self, recognizer: Parser, offendingSymbol: CommonToken, line, column, msg, e):
             token_stream = recognizer.getTokenStream()
@@ -54,7 +61,7 @@ class BosLoader:
         if self.preprocessor is not None and not force_reload:
             return
 
-        self.preprocessor = pcpp.Preprocessor()
+        self.preprocessor = self.BosPreprocessor()
         for def_str in [
             "TRUE 1",
             "true 1",
@@ -149,4 +156,5 @@ class BosLoader:
 
 if __name__ == '__main__':
     loader = BosLoader('./example_files/Units/legcom.bos')
-    print(loader.load_file().model_dump())
+    loader.dump_preprocessed_file('./preprocessed_blah.txt')
+    # print(loader.load_file().model_dump())
