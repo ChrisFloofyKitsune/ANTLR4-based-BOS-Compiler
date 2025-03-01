@@ -1,99 +1,99 @@
 import enum
+import logging
+import traceback
 from enum import IntEnum
+from typing import TypeVar, Protocol, Generic
 
-from bos import ast_nodes as nodes
 from code_error import CodeError
 from code_location import CodeLocation
 
+log = logging.getLogger(__name__)
 
-class NameRegistry:
 
-    class NameType(IntEnum):
-        STATIC = 0, 'Static Variable'
-        LOCAL = 1, 'Local Variable'
-        PIECE = 2, 'Piece Name'
-        FUNCTION = 3, 'Function Name'
-        ARG = 4, 'Function Argument'
+class NameType(IntEnum):
+    INVALID = 0, 'Invalid Name'
+    STATIC = 1, 'Static Variable'
+    LOCAL = 2, 'Local Variable'
+    PIECE = 3, 'Piece Name'
+    FUNCTION = 4, 'Function Name'
+    ARG = 5, 'Function Argument'
 
-        @enum.property
-        def description(self) -> str:
-            return self._description
+    @enum.property
+    def description(self) -> str:
+        return self._description
 
-        def __new__(cls, value, description):
-            obj = int.__new__(cls, value)
-            obj._value_ = value
-            obj._description = description
-            return obj
+    def __new__(cls, value, description):
+        obj = int.__new__(cls, value)
+        obj._value_ = value
+        obj._description = description
+        return obj
 
+class Stringable(Protocol):
+    def __str__(self) -> str:
+        ...
+
+NameValT = TypeVar('NameValT', bound=Stringable)
+class NameRegistry(Generic[NameValT]):
     def __init__(self):
-        self.__backing_dict: dict[NameRegistry.NameType, dict[nodes.NameNode, int]] = {
-            t: dict() for t in NameRegistry.NameType
+        self.__backing_dict: dict[NameType, dict[NameValT, int]] = {
+            t: dict() for t in NameType if t.value > 0
         }
 
-        self.__lookup_dict: dict[nodes.NameNode, tuple[int, NameRegistry.NameType]] = dict()
+        self.__lookup_dict: dict[str, tuple[int, NameType]] = dict()
 
-    def register(self, name: nodes.NameNode, name_type: NameType):
-        lookup_result = self.__lookup_dict.get(name, None)
+    def register(self, name: NameValT, name_type: NameType):
+        lookup_result = self.__lookup_dict.get(str(name).lower(), None)
 
         if lookup_result is not None:
             _, existing_name_type = lookup_result
-
-            if (
-                name_type == existing_name_type
-                and name_type in (NameRegistry.NameType.STATIC, NameRegistry.NameType.PIECE)
-            ):
-                print(
-                    f'[WARNING] Duplicate declaration of global name {name_type.description} "{name.name}". Ignoring.',
-                    CodeLocation.from_parser_node(name.parser_node)
-                )
-                return
-
-            raise CodeError(
-                f'invalid declaration of {name_type.description} "{name.name}", '
-                f'name is already being used by a {existing_name_type.description} declaration',
-                CodeLocation.from_parser_node(name.parser_node)
-            )
+            self.on_name_collision(name, name_type, existing_name_type)
+            
 
         new_idx = len(self.__backing_dict[name_type])
 
         # Function arguments share indexes with local variables in function bodies
-        if name_type == NameRegistry.NameType.LOCAL:
-            new_idx += len(self.__backing_dict[NameRegistry.NameType.ARG])
+        if name_type == NameType.LOCAL:
+            new_idx += len(self.__backing_dict[NameType.ARG])
 
         self.__backing_dict[name_type][name] = new_idx
-        self.__lookup_dict[name] = (new_idx, name_type)
+        self.__lookup_dict[str(name).lower()] = (new_idx, name_type)
 
-    def get_idx(self, name: nodes.NameNode) -> tuple[int, NameType]:
-        result = self.__lookup_dict.get(name, None)
+    def on_name_collision(self, name: NameValT, name_type: NameType, existing_type: NameType):
+        log.error("Attempt to register name %s of type %s, but it already exists as type %s", name, name_type, existing_type)
+        traceback.print_stack()
+
+    def lookup(self, name: NameValT) -> tuple[int, NameType]:
+        result = self.__lookup_dict.get(str(name).lower(), None)
 
         if result is None:
-            raise CodeError(
-                f'name "{name.name}" has not been defined',
-                CodeLocation.from_parser_node(name.parser_node)
-            )
+            return self.on_name_missing(name)
 
         return result
 
+    def on_name_missing(self, name):
+        log.error("Attempt to lookup name %s, but it does not exist", name)
+        return -1, NameType(0)
+
     def clear_local_names(self):
-        self.__backing_dict[NameRegistry.NameType.LOCAL].clear()
-        self.__backing_dict[NameRegistry.NameType.ARG].clear()
+        self.__backing_dict[NameType.LOCAL].clear()
+        self.__backing_dict[NameType.ARG].clear()
 
         self.__lookup_dict = {
             name: (idx, type_) for name, (idx, type_) in self.__lookup_dict.items()
-            if type_ not in (NameRegistry.NameType.LOCAL, NameRegistry.NameType.ARG)
+            if type_ not in (NameType.LOCAL, NameType.ARG)
         }
 
     def get_names(self):
-        return self.__lookup_dict.copy()
+        result: list[NameValT] = []
+        for inner_dict in self.__backing_dict.values():
+            result.extend(inner_dict.keys())
+        return result
 
-    def get_names_by_type(self, name_type: NameType) -> dict[nodes.NameNode, int]:
+    def get_names_by_type(self, name_type: NameType) -> dict[NameValT, int]:
         return self.__backing_dict[name_type].copy()
     
     def get_name_strings(self, *name_types: NameType):
-        return [n.name for n, _, t in self if t in name_types]
+        return [n for n, (_, t) in self.__lookup_dict.items() if t in name_types]
 
     def __len__(self):
         return len(self.__lookup_dict)
-
-    def __iter__(self):
-        yield from ((n, i, t) for n, (i, t) in self.__lookup_dict.items())

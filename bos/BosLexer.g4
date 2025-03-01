@@ -128,13 +128,13 @@ INT     : DIGIT+
 fragment DIGIT     :    [0-9];
 fragment HEX_DIGIT :    [0-9a-f];
 
+LINE_COMMENT    : '//' ~[\r\n]* -> channel(COMMENTS);
+BLOCK_COMMENT   : '/*' .*? '*/' -> channel(COMMENTS);
+
 LINE_DIRECTIVE: '#line ' INT ' ' ~[\r\n]* -> channel(LINE_MACRO);
 
 MULTI_LINE_MACRO: '#' (~[\r\n]*? '\\' [\r\n])+ ~[\r\n]+ -> channel(PREPROCESSOR);
-DIRECTIVE: '#' ~[\r\n]* -> channel(PREPROCESSOR);
-
-LINE_COMMENT    : '//' ~[\r\n]* -> channel(COMMENTS);
-BLOCK_COMMENT   : '/*' .*? '*/' -> channel(COMMENTS);
+MACRO: '#' ~[\r\n]* -> channel(PREPROCESSOR);
 
 WHITESPACE: [ \t\r\n] + -> channel(HIDDEN);
 NEWLINE    : ('\r')? '\n' -> channel(HIDDEN);

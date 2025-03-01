@@ -95,6 +95,9 @@ class NameNode(ASTNode):
 
     def __repr__(self):
         return f'{self.node_name}(\'{self.name}\')'
+    
+    def __str__(self):
+        return self.name
 
 
 class PieceName(NameNode, ValueNode):

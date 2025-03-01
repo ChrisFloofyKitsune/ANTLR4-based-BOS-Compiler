@@ -105,3 +105,7 @@ class UnitValue(IntEnum):
     KCOS = 136  # get (kiloCosine  : 1024*cos(x))
     KTAN = 137  # get (kiloTangent : 1024*tan(x))
     SQRT = 138  # get (square root)
+
+
+if __name__ == '__main__':
+    print([v.name for v in UnitValue])

@@ -1,3 +1,4 @@
+import logging
 from array import array
 from copy import copy
 from functools import singledispatchmethod
@@ -5,11 +6,37 @@ from typing import cast
 
 from bos import ast_nodes as nodes
 from cob.cob_file import CobFile
-from cob.compiler.name_registry import NameRegistry
+from cob.compiler.name_registry import NameRegistry, NameType
 from cob.opcodes import CobOpCode
 from code_error import CodeError
 from code_location import CodeLocation
 
+log = logging.getLogger(__name__)
+
+class NodeNameRegistry(NameRegistry[nodes.NameNode]):
+    def on_name_missing(self, name):
+        raise CodeError(
+            f'name "{str(name)}" has not been defined',
+            CodeLocation.from_parser_node(name.parser_node)
+        )
+    
+    def on_name_collision(self, name: nodes.NameNode, name_type: NameType, existing_type: NameType):
+        if (
+            name_type == existing_type
+            and name_type in (NameType.STATIC, NameType.PIECE)
+        ):
+            log.warning(
+                'Duplicate declaration of global name %s "%s". Location: %s',
+                name_type.description, str(name),
+                CodeLocation.from_parser_node(name.parser_node)
+            )
+            return
+
+        raise CodeError(
+            f'invalid declaration of {name_type.description} "{str(name)}", '
+            f'name is already being used by a {existing_type.description} declaration',
+            CodeLocation.from_parser_node(name.parser_node)
+        )
 
 class CobCompiler:
     def __init__(self, /, raise_exception_on_unhandled_node=True):
@@ -23,9 +50,9 @@ class CobCompiler:
         self._handle_node(file_node)
 
         return CobFile(
-            static_var_count=len(self.name_registry.get_name_strings(NameRegistry.NameType.STATIC)),
+            static_var_count=len(self.name_registry.get_name_strings(NameType.STATIC)),
             code=copy(self.code),
-            piece_names=self.name_registry.get_name_strings(NameRegistry.NameType.PIECE),
+            piece_names=self.name_registry.get_name_strings(NameType.PIECE),
             function_map={func_name.name: idx for func_name, idx in self.function_code_indices.items()}
         )
 
@@ -36,12 +63,12 @@ class CobCompiler:
         for declaration in file_node:
             if isinstance(declaration, nodes.PieceDeclaration):
                 for piece_name in declaration:
-                    self.name_registry.register(piece_name, NameRegistry.NameType.PIECE)
+                    self.name_registry.register(piece_name, NameType.PIECE)
             elif isinstance(declaration, nodes.StaticVarDeclaration):
                 for var_name in declaration:
-                    self.name_registry.register(var_name, NameRegistry.NameType.STATIC)
+                    self.name_registry.register(var_name, NameType.STATIC)
             elif isinstance(declaration, nodes.FuncDeclaration):
-                self.name_registry.register(declaration.name, NameRegistry.NameType.FUNCTION)
+                self.name_registry.register(declaration.name, NameType.FUNCTION)
             else:
                 raise ValueError('Unable to register names for object', declaration)
 
@@ -51,7 +78,7 @@ class CobCompiler:
             raise NotImplementedError(
                 f'INTERNAL COMPILER ERROR: Node of type {node.node_name} does not have a handler!'
             )
-        print(f'TODO: handle {node.node_name} AST Node')
+        log.debug(f'TODO: handle %s AST Node', node.node_name)
         self.code.append(CobOpCode.BAD_OP_PLACEHOLDER)
 
     @_handle_node.register(list)
@@ -81,7 +108,7 @@ class CobCompiler:
         self.function_code_indices[func_decl.name] = len(self.code)
 
         for arg in func_decl.args:
-            self.name_registry.register(arg, NameRegistry.NameType.ARG)
+            self.name_registry.register(arg, NameType.ARG)
             self.code.append(CobOpCode.CREATE_LOCAL_VAR)
 
         self._handle_node(func_decl.block)
@@ -142,7 +169,7 @@ class CobCompiler:
         for arg in args[::-1]:
             match arg:
                 case _ if isinstance(arg, nodes.NameNode):
-                    post_opcode_vals.insert(0, self.name_registry.get_idx(cast(nodes.NameNode, arg))[0])
+                    post_opcode_vals.insert(0, self.name_registry.lookup(cast(nodes.NameNode, arg))[0])
                 case _ if isinstance(arg, nodes.Axis):
                     post_opcode_vals.insert(0, cast(nodes.Axis, arg).axis.value)
                 case _ if arg is None:
@@ -160,7 +187,7 @@ class CobCompiler:
     @_handle_node.register
     def _handle_node__var_statement(self, var_statement: nodes.VarStatement):
         for var in var_statement:
-            self.name_registry.register(var, NameRegistry.NameType.LOCAL)
+            self.name_registry.register(var, NameType.LOCAL)
             self.code.append(CobOpCode.CREATE_LOCAL_VAR)
 
     @_handle_node.register(nodes.CallStatement)
@@ -175,7 +202,7 @@ class CobCompiler:
                 f'Expected a function name, got {func_name.node_name}',
                 CodeLocation.from_parser_node(statement.parser_node)
             )
-        self.code.append(self.name_registry.get_idx(func_name)[0])
+        self.code.append(self.name_registry.lookup(func_name)[0])
         self.code.append(len(statement.args) - 1)
 
     @_handle_node.register
@@ -223,12 +250,12 @@ class CobCompiler:
     @_handle_node.register
     def _handle_node__assign_statement(self, assign_statement: nodes.AssignStatement):
         self._handle_node(assign_statement.expression)
-        idx, name_type = self.name_registry.get_idx(assign_statement.variable)
+        idx, name_type = self.name_registry.lookup(assign_statement.variable)
 
         match name_type:
-            case NameRegistry.NameType.STATIC:
+            case NameType.STATIC:
                 self.code.append(CobOpCode.POP_STATIC)
-            case NameRegistry.NameType.LOCAL | NameRegistry.NameType.ARG:
+            case NameType.LOCAL | NameType.ARG:
                 self.code.append(CobOpCode.POP_LOCAL_VAR)
             case _:
                 raise CodeError(
@@ -266,13 +293,13 @@ class CobCompiler:
 
     @_handle_node.register
     def _handle_node__var_name_term(self, term: nodes.VarNameTerm):
-        idx, var_type = self.name_registry.get_idx(term.var_name)
+        idx, var_type = self.name_registry.lookup(term.var_name)
         match var_type:
-            case NameRegistry.NameType.STATIC:
+            case NameType.STATIC:
                 self.code.append(CobOpCode.PUSH_STATIC)
-            case NameRegistry.NameType.LOCAL | NameRegistry.NameType.ARG:
+            case NameType.LOCAL | NameType.ARG:
                 self.code.append(CobOpCode.PUSH_LOCAL_VAR)
-            case NameRegistry.NameType.PIECE | NameRegistry.NameType.FUNCTION:
+            case NameType.PIECE | NameType.FUNCTION:
                 self.code.append(CobOpCode.PUSH_CONSTANT)  # the value to use is literally the index
         self.code.append(idx)
 
