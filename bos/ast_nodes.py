@@ -55,6 +55,9 @@ class ASTNode(BaseModel, ABC):
     def __init__(self, parser_node: ParserRuleContext = None, **kwargs):
         super().__init__(**kwargs)
         self._parser_node = parser_node
+    
+    def __eq__(self, other):
+        return isinstance(other, self.__class__) and self.model_dump() == other.model_dump()
 
     @property
     def parser_node(self) -> Union[ParserRuleContext, None]:

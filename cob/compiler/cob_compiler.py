@@ -26,7 +26,7 @@ class NodeNameRegistry(NameRegistry[nodes.NameNode]):
             and name_type in (NameType.STATIC, NameType.PIECE)
         ):
             log.warning(
-                'Duplicate declaration of global name %s "%s". Location: %s',
+                'Skipping duplicate declaration of global name %s "%s". Location: %s',
                 name_type.description, str(name),
                 CodeLocation.from_parser_node(name.parser_node)
             )
@@ -42,7 +42,7 @@ class CobCompiler:
     def __init__(self, /, raise_exception_on_unhandled_node=True):
         self.raise_exception_on_unhandled_node = raise_exception_on_unhandled_node
 
-        self.name_registry: NameRegistry | None = None
+        self.name_registry: NodeNameRegistry | None = None
         self.function_code_indices: dict[nodes.FuncName, int] | None = None
         self.code: array | None = None
 
@@ -94,7 +94,7 @@ class CobCompiler:
 
     @_handle_node.register
     def _handle_node__file(self, file_node: nodes.File):
-        self.name_registry = NameRegistry()
+        self.name_registry = NodeNameRegistry()
         self.function_code_indices = dict()
         self.code = array('l')
 

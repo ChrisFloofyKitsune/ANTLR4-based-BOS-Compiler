@@ -1,3 +1,4 @@
+import logging
 from pathlib import Path
 
 import bos.ast_nodes as nodes
@@ -22,12 +23,13 @@ def __main(file_node: nodes.File):
             print(f"Length mismatch: original {len(byte_data)} != serialized {len(serialized_data)}")
         for i, (original_byte, serialized_byte) in enumerate(zip(byte_data, serialized_data)):
             if original_byte != serialized_byte:
-                print(f"Byte {hex(i)}: original {original_byte} != serialized {serialized_byte}")
+                print(f"Byte {hex(i)}: original {original_byte} ({hex(original_byte)}) != serialized {serialized_byte} ({hex(serialized_byte)})")
     else:
         print("Byte data matches.")
 
 
 if __name__ == '__main__':
+    logging.basicConfig(level=logging.DEBUG)
     loader = BosLoader('../../bos/example_files/Units/legcom.bos', enable_constant_folding=True)
     preproc_dir = Path('preprocessed')
     preproc_dir.mkdir(exist_ok=True)
