@@ -59,7 +59,10 @@ class NameRegistry(Generic[NameValT]):
         self.__lookup_dict[str(name).lower()] = (new_idx, name_type)
 
     def on_name_collision(self, name: NameValT, name_type: NameType, existing_type: NameType):
-        log.error("Attempt to register name %s of type %s, but it already exists as type %s", name, name_type, existing_type)
+        log.error(
+            "Attempt to register name %s of type %s, but it already exists as type %s",
+            name, name_type.description, existing_type.description
+        )
         traceback.print_stack()
 
     def lookup(self, name: NameValT) -> tuple[int, NameType]:
@@ -89,11 +92,14 @@ class NameRegistry(Generic[NameValT]):
             result.extend(inner_dict.keys())
         return result
 
-    def get_names_by_type(self, name_type: NameType) -> dict[NameValT, int]:
-        return self.__backing_dict[name_type].copy()
+    def get_names_by_type(self, *name_types: NameType) -> dict[NameValT, int]:
+        result = dict()
+        for name_type in name_types:
+            result.update(self.__backing_dict[name_type])
+        return result
     
     def get_name_strings(self, *name_types: NameType):
-        return [n for n, (_, t) in self.__lookup_dict.items() if t in name_types]
+        return [str(name) for name in self.get_names_by_type(*name_types).keys()]
 
     def __len__(self):
         return len(self.__lookup_dict)
