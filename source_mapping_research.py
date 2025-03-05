@@ -107,8 +107,10 @@ def __main():
             preproc_line_extra_size = len(preproc_line) - count_visible_characters(preproc_line)
 
             print(
-                '{:{psize}} | {}'.format(
+                '{} {:{psize}} |{} {}'.format(
+                    color,
                     preproc_line[:130],
+                    color,
                     output_line[:130],
                     psize=130 + preproc_line_extra_size,
                 )
