@@ -1,4 +1,4 @@
-# Generated from E:/bar_dev/antlr4_based_bos_parser/bos/BosParser.g4 by ANTLR 4.13.2
+# Generated from E:/bar_dev/antlr4_based_bos_tools/bos/BosParser.g4 by ANTLR 4.13.2
 from antlr4 import *
 if "." in __name__:
     from .BosParser import BosParser

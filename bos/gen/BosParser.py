@@ -1,4 +1,4 @@
-# Generated from E:/bar_dev/antlr4_based_bos_parser/bos/BosParser.g4 by ANTLR 4.13.2
+# Generated from E:/bar_dev/antlr4_based_bos_tools/bos/BosParser.g4 by ANTLR 4.13.2
 # encoding: utf-8
 from antlr4 import *
 from io import StringIO
@@ -10,7 +10,7 @@ else:
 
 def serializedATN():
     return [
-        4,1,87,525,2,0,7,0,2,1,7,1,2,2,7,2,2,3,7,3,2,4,7,4,2,5,7,5,2,6,7,
+        4,1,88,525,2,0,7,0,2,1,7,1,2,2,7,2,2,3,7,3,2,4,7,4,2,5,7,5,2,6,7,
         6,2,7,7,7,2,8,7,8,2,9,7,9,2,10,7,10,2,11,7,11,2,12,7,12,2,13,7,13,
         2,14,7,14,2,15,7,15,2,16,7,16,2,17,7,17,2,18,7,18,2,19,7,19,2,20,
         7,20,2,21,7,21,2,22,7,22,2,23,7,23,2,24,7,24,2,25,7,25,2,26,7,26,
@@ -76,16 +76,16 @@ def serializedATN():
         0,0,130,3,1,0,0,0,131,132,5,36,0,0,132,137,3,6,3,0,133,134,5,1,0,
         0,134,136,3,6,3,0,135,133,1,0,0,0,136,139,1,0,0,0,137,135,1,0,0,
         0,137,138,1,0,0,0,138,140,1,0,0,0,139,137,1,0,0,0,140,141,5,8,0,
-        0,141,5,1,0,0,0,142,143,5,86,0,0,143,7,1,0,0,0,144,145,5,34,0,0,
+        0,141,5,1,0,0,0,142,143,5,87,0,0,143,7,1,0,0,0,144,145,5,34,0,0,
         145,150,3,10,5,0,146,147,5,1,0,0,147,149,3,10,5,0,148,146,1,0,0,
         0,149,152,1,0,0,0,150,148,1,0,0,0,150,151,1,0,0,0,151,153,1,0,0,
-        0,152,150,1,0,0,0,153,154,5,8,0,0,154,9,1,0,0,0,155,156,5,86,0,0,
+        0,152,150,1,0,0,0,153,154,5,8,0,0,154,9,1,0,0,0,155,156,5,87,0,0,
         156,11,1,0,0,0,157,171,3,14,7,0,158,159,5,2,0,0,159,172,5,3,0,0,
         160,161,5,2,0,0,161,166,3,16,8,0,162,163,5,1,0,0,163,165,3,16,8,
         0,164,162,1,0,0,0,165,168,1,0,0,0,166,164,1,0,0,0,166,167,1,0,0,
         0,167,169,1,0,0,0,168,166,1,0,0,0,169,170,5,3,0,0,170,172,1,0,0,
         0,171,158,1,0,0,0,171,160,1,0,0,0,172,173,1,0,0,0,173,174,3,18,9,
-        0,174,13,1,0,0,0,175,176,5,86,0,0,176,15,1,0,0,0,177,178,5,86,0,
+        0,174,13,1,0,0,0,175,176,5,87,0,0,176,15,1,0,0,0,177,178,5,87,0,
         0,178,17,1,0,0,0,179,183,5,4,0,0,180,182,3,20,10,0,181,180,1,0,0,
         0,182,185,1,0,0,0,183,181,1,0,0,0,183,184,1,0,0,0,184,186,1,0,0,
         0,185,183,1,0,0,0,186,189,5,5,0,0,187,189,3,20,10,0,188,179,1,0,
@@ -191,7 +191,7 @@ def serializedATN():
         514,5,11,0,0,513,512,1,0,0,0,513,514,1,0,0,0,514,515,1,0,0,0,515,
         521,5,78,0,0,516,518,5,11,0,0,517,516,1,0,0,0,517,518,1,0,0,0,518,
         519,1,0,0,0,519,521,5,77,0,0,520,510,1,0,0,0,520,511,1,0,0,0,520,
-        513,1,0,0,0,520,517,1,0,0,0,521,117,1,0,0,0,522,523,5,87,0,0,523,
+        513,1,0,0,0,520,517,1,0,0,0,521,117,1,0,0,0,522,523,5,88,0,0,523,
         119,1,0,0,0,32,123,129,137,150,166,171,183,188,205,213,222,239,250,
         278,310,319,329,375,385,417,432,464,466,474,479,498,501,504,508,
         513,517,520
@@ -239,9 +239,9 @@ class BosParser ( Parser ):
                       "DROP_UNIT", "RETURN", "CACHE", "DONT_CACHE", "DONT_SHADOW", 
                       "DONT_SHADE", "PLAY_SOUND", "X_AXIS", "Y_AXIS", "Z_AXIS", 
                       "RAND", "LINEAR_CONSTANT", "DEGREES_CONSTANT", "FLOAT", 
-                      "INT", "LINE_DIRECTIVE", "MULTI_LINE_MACRO", "DIRECTIVE", 
-                      "LINE_COMMENT", "BLOCK_COMMENT", "WHITESPACE", "NEWLINE", 
-                      "ID", "STRING" ]
+                      "INT", "LINE_COMMENT", "BLOCK_COMMENT", "LINE_DIRECTIVE", 
+                      "INCLUDE_DIRECTIVE", "MULTI_LINE_MACRO", "SINGLE_LINE_MACRO", 
+                      "WHITESPACE", "NEWLINE", "ID", "STRING" ]
 
     RULE_file = 0
     RULE_declaration = 1
@@ -401,15 +401,16 @@ class BosParser ( Parser ):
     DEGREES_CONSTANT=76
     FLOAT=77
     INT=78
-    LINE_DIRECTIVE=79
-    MULTI_LINE_MACRO=80
-    DIRECTIVE=81
-    LINE_COMMENT=82
-    BLOCK_COMMENT=83
-    WHITESPACE=84
-    NEWLINE=85
-    ID=86
-    STRING=87
+    LINE_COMMENT=79
+    BLOCK_COMMENT=80
+    LINE_DIRECTIVE=81
+    INCLUDE_DIRECTIVE=82
+    MULTI_LINE_MACRO=83
+    SINGLE_LINE_MACRO=84
+    WHITESPACE=85
+    NEWLINE=86
+    ID=87
+    STRING=88
 
     def __init__(self, input:TokenStream, output:TextIO = sys.stdout):
         super().__init__(input, output)
@@ -464,7 +465,7 @@ class BosParser ( Parser ):
             self.state = 123
             self._errHandler.sync(self)
             _la = self._input.LA(1)
-            while ((((_la - 34)) & ~0x3f) == 0 and ((1 << (_la - 34)) & 4503599627370501) != 0):
+            while ((((_la - 34)) & ~0x3f) == 0 and ((1 << (_la - 34)) & 9007199254740997) != 0):
                 self.state = 120
                 self.declaration()
                 self.state = 125
@@ -537,7 +538,7 @@ class BosParser ( Parser ):
                 self.state = 127
                 self.staticVarDecl()
                 pass
-            elif token in [86]:
+            elif token in [87]:
                 self.enterOuterAlt(localctx, 3)
                 self.state = 128
                 self.funcDecl()
@@ -1064,7 +1065,7 @@ class BosParser ( Parser ):
                 self.state = 183
                 self._errHandler.sync(self)
                 _la = self._input.LA(1)
-                while (((_la) & ~0x3f) == 0 and ((1 << _la) & -1153307805776510720) != 0) or ((((_la - 64)) & ~0x3f) == 0 and ((1 << (_la - 64)) & 4194431) != 0):
+                while (((_la) & ~0x3f) == 0 and ((1 << _la) & -1153307805776510720) != 0) or ((((_la - 64)) & ~0x3f) == 0 and ((1 << (_la - 64)) & 8388735) != 0):
                     self.state = 180
                     self.statement()
                     self.state = 185
@@ -1074,7 +1075,7 @@ class BosParser ( Parser ):
                 self.state = 186
                 self.match(BosParser.R_BRACE)
                 pass
-            elif token in [8, 15, 16, 30, 32, 35, 37, 39, 45, 47, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 86]:
+            elif token in [8, 15, 16, 30, 32, 35, 37, 39, 45, 47, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 87]:
                 self.enterOuterAlt(localctx, 2)
                 self.state = 187
                 self.statement()
@@ -1181,7 +1182,7 @@ class BosParser ( Parser ):
                 self.state = 197
                 self.whileStatement()
                 pass
-            elif token in [15, 16, 86]:
+            elif token in [15, 16, 87]:
                 self.enterOuterAlt(localctx, 5)
                 self.state = 198
                 self.assignStatement()
@@ -1544,7 +1545,7 @@ class BosParser ( Parser ):
             self.state = 239
             self._errHandler.sync(self)
             token = self._input.LA(1)
-            if token in [86]:
+            if token in [87]:
                 self.enterOuterAlt(localctx, 1)
                 self.state = 233
                 self.varName()
@@ -4563,7 +4564,7 @@ class BosParser ( Parser ):
                 self.state = 477
                 self.randTerm()
                 pass
-            elif token in [86]:
+            elif token in [87]:
                 self.enterOuterAlt(localctx, 3)
                 self.state = 478
                 self.varNameTerm()
