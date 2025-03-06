@@ -13,11 +13,14 @@ class TokenType(enum.IntEnum):
     Keyword = enum.auto(), lsp_types.SemanticTokenTypes.Keyword
     Variable = enum.auto(), lsp_types.SemanticTokenTypes.Variable
     Function = enum.auto(), lsp_types.SemanticTokenTypes.Function
-    Parameter = enum.auto(), lsp_types.SemanticTokenTypes.Function
+    Parameter = enum.auto(), lsp_types.SemanticTokenTypes.Parameter
     Number = enum.auto(), lsp_types.SemanticTokenTypes.Number
     Operator = enum.auto(), lsp_types.SemanticTokenTypes.Operator
     Enum = enum.auto(), lsp_types.SemanticTokenTypes.Enum
     EnumMember = enum.auto(), lsp_types.SemanticTokenTypes.EnumMember
+    String = enum.auto(), lsp_types.SemanticTokenTypes.String
+    Modifier = enum.auto(), lsp_types.SemanticTokenTypes.Modifier
+    Namespace = enum.auto(), lsp_types.SemanticTokenTypes.Namespace
 
     def __new__(cls, value, str_value):
         obj = int.__new__(cls)
@@ -40,6 +43,10 @@ class TokenModifier(enum.IntFlag):
     ReadOnly = enum.auto(), lsp_types.SemanticTokenModifiers.Readonly
     DefaultLibrary = enum.auto(), lsp_types.SemanticTokenModifiers.DefaultLibrary
     Static = enum.auto(), lsp_types.SemanticTokenModifiers.Static
+    Deprecated = enum.auto(), lsp_types.SemanticTokenModifiers.Deprecated
+    Modification = enum.auto(), lsp_types.SemanticTokenModifiers.Modification
+    Angular = enum.auto(), 'angular'
+    Linear = enum.auto(), 'linear'
 
     def __new__(cls, value, str_value):
         obj = int.__new__(cls)
@@ -60,7 +67,7 @@ class TokenModifier(enum.IntFlag):
 class LspToken(BaseModel):
     code_location: CodeLocation
     token_type: TokenType
-    token_modifiers: list[TokenModifier] = Field(default_factory=list)
+    token_modifier: TokenModifier = 0
     
     def __eq__(self, other):
         return self.code_location == other.code_location and self.token_type == other.token_type

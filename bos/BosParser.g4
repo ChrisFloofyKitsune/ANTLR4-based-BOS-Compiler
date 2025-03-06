@@ -23,7 +23,7 @@ funcName: ID;
 argName : ID;
 
 statementBlock
-    : '{' statement* '}'
+    : L_BRACE statement* R_BRACE
     | statement
     ;
 

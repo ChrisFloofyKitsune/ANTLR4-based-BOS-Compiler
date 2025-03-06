@@ -100,8 +100,8 @@ ATTACH_UNIT: 'attach' '-'? 'unit';
 DROP_UNIT: 'drop' '-'? 'unit';
 
 RETURN: 'return';
-CACHE: 'cache';
 
+CACHE: 'cache';
 DONT_CACHE: 'dont' '-'? 'cache';
 DONT_SHADOW: 'dont' '-'? 'shadow';
 DONT_SHADE: 'dont' '-'? 'shade';
@@ -132,9 +132,10 @@ LINE_COMMENT    : '//' ~[\r\n]* -> channel(COMMENTS);
 BLOCK_COMMENT   : '/*' .*? '*/' -> channel(COMMENTS);
 
 LINE_DIRECTIVE: '#line ' INT ' ' ~[\r\n]* -> channel(LINE_MACRO);
+INCLUDE_DIRECTIVE: '#include' ~[\r\n]* -> channel(PREPROCESSOR);
 
 MULTI_LINE_MACRO: '#' (~[\r\n]*? '\\' [\r\n])+ ~[\r\n]+ -> channel(PREPROCESSOR);
-MACRO: '#' ~[\r\n]* -> channel(PREPROCESSOR);
+SINGLE_LINE_MACRO: '#' ~[\r\n]* -> channel(PREPROCESSOR);
 
 WHITESPACE: [ \t\r\n] + -> channel(HIDDEN);
 NEWLINE    : ('\r')? '\n' -> channel(HIDDEN);

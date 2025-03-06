@@ -1,6 +1,5 @@
 import logging
-import os
-from io import StringIO
+import time
 from os import PathLike
 from pathlib import Path
 
@@ -25,22 +24,29 @@ from code_location import CodeLocation
 class BosLoader:
 
     class ErrorListener(antlr4.error.ErrorListener.ErrorListener):
-        def syntaxError(self, recognizer: Parser, offendingSymbol: CommonToken, line, column, msg, e):
+        def __init__(self, loader: 'BosLoader'):
+            self.loader = loader
+
+        def syntaxError(self, recognizer: Parser, offending_symbol: CommonToken, line, column, msg, e):
             token_stream = recognizer.getTokenStream()
-            raise CodeError(msg, CodeLocation.from_token(offendingSymbol, token_stream))
+            self.loader.parse_errors.append(CodeError(msg, CodeLocation.from_token(offending_symbol, token_stream)))
 
     def __init__(
         self,
         bos_file_path: str | PathLike[str],
         include_paths: list[str | PathLike[str]] = None,
         /,
-        enable_constant_folding=False
+        enable_constant_folding=False,
+        file_contents: str = None,
     ):
-        
+
         self.filepath = Path(bos_file_path)
         self.include_paths = [Path(p) for p in include_paths] if include_paths is not None else []
         self.enable_constant_folding = enable_constant_folding
-        
+
+        if file_contents is not None:
+            self.file_contents = file_contents
+
         self.log = logging.getLogger(self.__class__.__name__).getChild(self.filepath.name)
 
         self.file_contents: str | None = None
@@ -48,10 +54,11 @@ class BosLoader:
         self.preprocessor: pcpp.Preprocessor | None = None
         self.preprocessed_file_contents: str | None = None
 
-        self.bos_parser: BosParser | None = None
-        self.token_stream: CommonTokenStream | None = None
         self.bos_lexer: BosLexer | None = None
+        self.token_stream: CommonTokenStream | None = None
+        self.bos_parser: BosParser | None = None
 
+        self.parse_errors: list[CodeError] = []
         self.parser_node_tree: BosParser.FileContext | None = None
         self.ast_node_tree: ast_nodes.File | None = None
 
@@ -61,16 +68,17 @@ class BosLoader:
 
         with open(self.filepath, 'rt', encoding='utf8') as f:
             self.file_contents = f.read()
+            self.log.debug('File loaded, %d bytes', len(self.file_contents.encode('utf8')))
 
     def _run_preprocessor(self, force_reload=False):
         if self.preprocessed_file_contents is not None and not force_reload:
             return
 
         self.preprocessor = BosPreprocessor()
-        
+
         (
-            self.preprocessed_file_contents, 
-            self.reconstructed_file_contents, 
+            self.preprocessed_file_contents,
+            self.reconstructed_file_contents,
             self.preproc_chunks
         ) = self.preprocessor.process_file(self.file_contents, self.filepath, self.include_paths)
 
@@ -86,6 +94,9 @@ class BosLoader:
         self.bos_parser._interp.predictionMode = PredictionMode.SLL
         self.bos_parser.removeErrorListeners()
         self.bos_parser._errHandler = BailErrorStrategy()
+
+        start_time = time.perf_counter()
+
         try:
             self.parser_node_tree = self.bos_parser.file_()
         except BaseException:
@@ -96,9 +107,12 @@ class BosLoader:
             self.bos_lexer = BosLexer(InputStream(self.preprocessed_file_contents))
             self.token_stream = CommonTokenStream(self.bos_lexer)
             self.bos_parser = BosParser(self.token_stream)
-            self.bos_parser.addErrorListener(self.ErrorListener())
+            self.bos_parser.addErrorListener(self.ErrorListener(self))
 
             self.parser_node_tree = self.bos_parser.file_()
+
+        end_time = time.perf_counter()
+        self.log.debug('Parsing took %.2f seconds (%.2f mins)', end_time - start_time, (end_time - start_time) / 60)
 
         if self.bos_parser.getNumberOfSyntaxErrors() > 0:
             raise ValueError('Syntax errors found in preprocessed file')
@@ -109,6 +123,7 @@ class BosLoader:
 
         ast_visitor = ASTVisitor(enable_constant_folding=self.enable_constant_folding)
         self.ast_node_tree = ast_visitor.visitFile(self.parser_node_tree)
+        self.log.debug('AST conversion complete')
 
     def load_file(self, force_reload=False) -> ast_nodes.File:
         self._load_file_contents(force_reload)
@@ -133,9 +148,14 @@ class BosLoader:
 
         with open(destination, 'wt', encoding='utf8') as f:
             f.write(self.preprocessed_file_contents)
+        self.log.info('Preprocessed file dumped to %s', destination)
 
 
 if __name__ == '__main__':
-    loader = BosLoader('./example_files/Units/legcom.bos')
-    loader.dump_preprocessed_file('./preprocessed_blah.txt')
-    # print(loader.load_file().model_dump())
+    def main():
+        loader = BosLoader('./example_files/Units/legcom.bos')
+        loader.dump_preprocessed_file('./preprocessed_blah.txt')
+        # print(loader.load_file().model_dump())
+
+
+    main()
