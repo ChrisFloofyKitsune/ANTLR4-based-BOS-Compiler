@@ -101,11 +101,8 @@ class BosLoader:
             self.parser_node_tree = self.bos_parser.file_()
         except BaseException:
             self.log.debug(
-                'File could not be handled by faster, but weaker, SLL parser, trying again with default LL parser'
+                'File could not be handled by SLL parser, trying again with default LL parser'
             )
-            # reset and try again
-            self.bos_lexer = BosLexer(InputStream(self.preprocessed_file_contents))
-            self.token_stream = CommonTokenStream(self.bos_lexer)
             self.bos_parser = BosParser(self.token_stream)
             self.bos_parser.addErrorListener(self.ErrorListener(self))
 
