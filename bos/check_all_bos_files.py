@@ -1,6 +1,7 @@
 import os.path
 
 import sys
+import time
 from pathlib import Path
 
 from bos.bos_loader import BosLoader
@@ -11,7 +12,7 @@ from cob.compiler.cob_compiler import CobCompiler
 
 
 def main():
-    examples_dir = Path('./example_files/Units')
+    examples_dir = Path('./example_files/Raptors')
     preprocessed_dir = Path('./preprocessed')
     preprocessed_dir.mkdir(exist_ok=True)
 
@@ -62,4 +63,7 @@ ______________________________________________
 
 
 if __name__ == '__main__':
+    start = time.perf_counter()
     main()
+    end = time.perf_counter()
+    print(f'Finished in {end - start:.2f} seconds')
