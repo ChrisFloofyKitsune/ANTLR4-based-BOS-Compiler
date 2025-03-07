@@ -47,7 +47,7 @@ class LspVisitor(BosParserVisitor):
         if isinstance(source_obj, CommonToken):
             self.lsp_tokens.append(
                 LspToken(
-                    code_location=CodeLocation.from_token(source_obj, self.token_stream, self.filepath),
+                    code_location=CodeLocation.from_token(source_obj, self.token_stream, starting_file=self.filepath),
                     token_type=token_type,
                     token_modifier=token_mod
                 )

@@ -1,3 +1,4 @@
+import logging
 import os
 from dataclasses import dataclass
 from os import PathLike
@@ -7,6 +8,8 @@ from typing import Protocol
 import pcpp
 
 from unit_value_nums import UnitValue
+
+log = logging.getLogger(__name__)
 
 
 class BosPreprocessor(pcpp.Preprocessor):
@@ -67,7 +70,11 @@ class BosPreprocessor(pcpp.Preprocessor):
         # retain comments
         return True
 
-    def on_directive_handle(self, *_, **__):
+    def on_directive_handle(self, directive: _PcppToken, *_, **__):
+        super().on_directive_handle(directive, *_, **__)
+        if directive.value == 'line':
+            return True
+
         # process and pass through
         return None
 

@@ -86,7 +86,9 @@ class BosLanguageServer(LanguageServer):
                 token_type, token_mod = lexer_token_symbolic_type_lookup[token.type]
                 token_list.append(
                     LspToken(
-                        code_location=CodeLocation.from_token(token, token_stream, doc.path),
+                        code_location=CodeLocation.from_token(
+                            token, token_stream, starting_file=doc.path, use_line_directives=False
+                        ),
                         token_type=token_type,
                         token_modifier=token_mod
                     )
