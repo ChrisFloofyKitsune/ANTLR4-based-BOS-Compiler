@@ -54,11 +54,14 @@ class ASTVisitor(BosParserVisitor):
 
         return [*aggregate, next_result]
 
-    def visitChildren(self, node):
+    def visitChildren(self, node: ParserRuleContext):
         result = super().visitChildren(node)
         if isinstance(result, nodes.ASTNode):
             return result
-        return nodes.UndefNode(contents=result, parser_node=node)
+
+        name = node.__class__.__name__.removesuffix('Context')
+
+        return nodes.UndefNode(contents=result, name=name, parser_node=node)
 
     def visitTypedChildren(self, node: ParserRuleContext, child_type: type[ParserRuleContext]):
         result = []
@@ -253,7 +256,7 @@ class ASTVisitor(BosParserVisitor):
         )
 
     def visitEmptyStatement(self, ctx: BosParser.EmptyStatementContext):
-        return nodes.EmptyStatement(parser_node=ctx)
+        return None
 
     def visitFile(self, ctx: BosParser.FileContext):
         return nodes.File(

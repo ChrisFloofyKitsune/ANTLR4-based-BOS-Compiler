@@ -2,14 +2,11 @@ import sys
 from abc import ABC, abstractmethod
 from collections.abc import Generator
 from enum import Enum
-from math import floor
 from types import SimpleNamespace
 from typing import Literal, Any, Union, ClassVar
 
-from antlr4 import ParserRuleContext
-from pydantic import BaseModel, computed_field, model_serializer
+from pydantic import BaseModel, computed_field, model_serializer, Field
 
-from bos.gen.BosParser import BosParser
 from code_error import CodeError
 from code_location import CodeLocation
 
@@ -29,7 +26,7 @@ class ASTNode(BaseModel, ABC):
     def serialize(self) -> dict[str, Any]:
         if isinstance(self, UndefNode):
             sys.stderr.write(
-                f'!! Parser Node was not converted to an AST Node: {self._parser_node.__class__.__name__} !!\n'
+                f'!! Parser Node was not converted to an AST Node: {self.node_name} !!\n'
             )
 
         value = self.value()
@@ -50,27 +47,20 @@ class ASTNode(BaseModel, ABC):
 
         return {self.node_name: value}
 
-    _parser_node: Union[ParserRuleContext, None]
+    parser_node: Union[Any, None] = Field(exclude=True)
 
-    def __init__(self, parser_node: ParserRuleContext = None, **kwargs):
-        super().__init__(**kwargs)
-        self._parser_node = parser_node
-    
     def __eq__(self, other):
         return isinstance(other, self.__class__) and self.model_dump() == other.model_dump()
-
-    @property
-    def parser_node(self) -> Union[ParserRuleContext, None]:
-        return self._parser_node
 
 
 class UndefNode(ASTNode):
     contents: Any
+    name: str
 
     @computed_field
     @property
     def node_name(self) -> str:
-        return "Undef__" + self._parser_node.__class__.__name__.removesuffix('Context')
+        return "Undef__" + self.name
 
     def value(self):
         return self.contents
@@ -98,7 +88,7 @@ class NameNode(ASTNode):
 
     def __repr__(self):
         return f'{self.node_name}(\'{self.name}\')'
-    
+
     def __str__(self):
         return self.name
 
@@ -144,27 +134,27 @@ class Expression(ASTNode, ABC):
 
 
 class ExpressionOp(Enum):
-    MULT = BosParser.OP_MULT
-    DIV = BosParser.OP_DIV
-    MOD = BosParser.OP_MOD
-    ADD = BosParser.OP_ADD
-    MINUS = BosParser.OP_MINUS
+    MULT = '*'
+    DIV = '/'
+    MOD = '%'
+    ADD = '+'
+    MINUS = '-'
 
-    COMP_LESS = BosParser.COMP_LESS
-    COMP_LESS_EQUAL = BosParser.COMP_LESS_EQUAL
-    COMP_GREATER = BosParser.COMP_GREATER
-    COMP_GREATER_EQUAL = BosParser.COMP_GREATER_EQUAL
-    COMP_EQUAL = BosParser.COMP_EQUAL
-    COMP_NOT_EQUAL = BosParser.COMP_NOT_EQUAL
+    COMP_LESS = '<'
+    COMP_LESS_EQUAL = '<='
+    COMP_GREATER = '>'
+    COMP_GREATER_EQUAL = '>='
+    COMP_EQUAL = '=='
+    COMP_NOT_EQUAL = '!='
 
-    BITWISE_AND = BosParser.BITWISE_AND
-    BITWISE_OR = BosParser.BITWISE_OR
-    BITWISE_XOR = BosParser.BITWISE_XOR
+    BITWISE_AND = '&'
+    BITWISE_OR = '|'
+    BITWISE_XOR = '^'
 
-    LOGICAL_AND = BosParser.LOGICAL_AND
-    LOGICAL_OR = BosParser.LOGICAL_OR
-    LOGICAL_XOR = BosParser.LOGICAL_XOR
-    LOGICAL_NOT = BosParser.LOGICAL_NOT
+    LOGICAL_AND = '&&'
+    LOGICAL_OR = '||'
+    LOGICAL_XOR = '^^'
+    LOGICAL_NOT = '!'
 
     def __repr__(self):
         return f'ExpressionOp.{self.name}'
@@ -194,13 +184,23 @@ class Constant(ValueNode):
     base_value: int | float
     const_type: Literal['normal', 'angular', 'linear'] = 'normal'
 
-    def __init__(self, /, value: float | int | str, **kwargs):
-        const_type: Literal['normal', 'angular', 'linear'] = 'normal'
+    def __init__(
+            self,
+            /,
+            value: float | int | str,
+            *,
+            const_type: Literal['normal', 'angular', 'linear'] = None,
+            **kwargs
+    ):
         if isinstance(value, str):
-            if value[0] == '[' and value[-1] == ']':
-                const_type = 'linear'
-            elif value[0] == '<' and value[-1] == '>':
-                const_type = 'angular'
+            if const_type is None:
+                if value[0] == '[' and value[-1] == ']':
+                    const_type = 'linear'
+                elif value[0] == '<' and value[-1] == '>':
+                    const_type = 'angular'
+                else:
+                    const_type = 'normal'
+
             value = value.strip('()[]<>')
             if '.' in value:
                 value = float(value)
@@ -208,6 +208,8 @@ class Constant(ValueNode):
                 value = int(value, base=16)
             else:
                 value = int(value)
+        elif const_type is None:
+            const_type = 'normal'
         super().__init__(**kwargs, base_value=value, const_type=const_type)
 
     def __repr__(self):
@@ -293,40 +295,40 @@ class ArgName(NameNode):
 
 
 class Keyword(Enum):
-    TURN = BosParser.TURN
-    AROUND = BosParser.AROUND
-    MOVE = BosParser.MOVE
-    ALONG = BosParser.ALONG
-    TO = BosParser.TO
-    FROM = BosParser.FROM
-    NOW = BosParser.NOW
-    SPEED = BosParser.SPEED
-    SPIN = BosParser.SPIN
-    ACCELERATE = BosParser.ACCELERATE
-    STOP_SPIN = BosParser.STOP_SPIN
-    DECELERATE = BosParser.DECELERATE
-    WAIT_FOR_TURN = BosParser.WAIT_FOR_TURN
-    WAIT_FOR_MOVE = BosParser.WAIT_FOR_MOVE
-    SET = BosParser.SET
-    GET = BosParser.GET
-    CALL_SCRIPT = BosParser.CALL_SCRIPT
-    START_SCRIPT = BosParser.START_SCRIPT
-    EMIT_SFX = BosParser.EMIT_SFX
-    SLEEP = BosParser.SLEEP
-    HIDE = BosParser.HIDE
-    SHOW = BosParser.SHOW
-    EXPLODE = BosParser.EXPLODE
-    TYPE = BosParser.TYPE
-    SIGNAL = BosParser.SIGNAL
-    SET_SIGNAL_MASK = BosParser.SET_SIGNAL_MASK
-    ATTACH_UNIT = BosParser.ATTACH_UNIT
-    DROP_UNIT = BosParser.DROP_UNIT
-    RETURN = BosParser.RETURN
-    CACHE = BosParser.CACHE
-    DONT_CACHE = BosParser.DONT_CACHE
-    DONT_SHADOW = BosParser.DONT_SHADOW
-    DONT_SHADE = BosParser.DONT_SHADE
-    PLAY_SOUND = BosParser.PLAY_SOUND
+    TURN = 'turn'
+    AROUND = 'around'
+    MOVE = 'move'
+    ALONG = 'along'
+    TO = 'to'
+    FROM = 'from'
+    NOW = 'now'
+    SPEED = 'speed'
+    SPIN = 'spin'
+    ACCELERATE = 'accelerate'
+    STOP_SPIN = 'stop-spin'
+    DECELERATE = 'decelerate'
+    WAIT_FOR_TURN = 'wait-for-turn'
+    WAIT_FOR_MOVE = 'wait-for-move'
+    SET = 'set'
+    GET = 'get'
+    CALL_SCRIPT = 'call-script'
+    START_SCRIPT = 'start-script'
+    EMIT_SFX = 'emit-sfx'
+    SLEEP = 'sleep'
+    HIDE = 'hide'
+    SHOW = 'show'
+    EXPLODE = 'explode'
+    TYPE = 'type'
+    SIGNAL = 'signal'
+    SET_SIGNAL_MASK = 'set-signal-mask'
+    ATTACH_UNIT = 'attach-unit'
+    DROP_UNIT = 'drop-unit'
+    RETURN = 'return'
+    CACHE = 'cache'
+    DONT_CACHE = 'dont-cache'
+    DONT_SHADOW = 'dont-shade'
+    DONT_SHADE = 'dont-shade'
+    PLAY_SOUND = 'play-sound'
 
     def __repr__(self):
         return f'Keyword.{self.name}'
@@ -423,11 +425,6 @@ class ReturnStatement(Statement):
 
     def value(self):
         return SimpleNamespace(expression=self.expression)
-
-
-class EmptyStatement(Statement):
-    def value(self):
-        return None
 
 
 class FuncDeclaration(Declaration):

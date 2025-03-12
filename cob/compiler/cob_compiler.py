@@ -88,7 +88,6 @@ class CobCompiler:
 
     @_handle_node.register(nodes.PieceDeclaration)
     @_handle_node.register(nodes.StaticVarDeclaration)
-    @_handle_node.register(nodes.EmptyStatement)
     def _handle_node__noop(self, *_, **__):
         ...
 
