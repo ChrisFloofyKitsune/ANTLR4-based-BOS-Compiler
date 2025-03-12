@@ -47,7 +47,7 @@ class ASTNode(BaseModel, ABC):
 
         return {self.node_name: value}
 
-    parser_node: Union[Any, None] = Field(exclude=True)
+    parser_node: Union[Any, None] = Field(default=None, exclude=True)
 
     def __eq__(self, other):
         return isinstance(other, self.__class__) and self.model_dump() == other.model_dump()
@@ -338,7 +338,7 @@ class Statement(ASTNode, ABC):
     ...
 
 
-class StatementBlock(ASTNode):
+class StatementBlock(Statement):
     statements: list[Statement | UndefNode]
 
     def value(self):
@@ -382,8 +382,8 @@ class VarStatement(Statement):
 
 class IfStatement(Statement):
     condition: Expression | ValueNode
-    then_block: StatementBlock
-    else_block: StatementBlock | None
+    then_block: Statement
+    else_block: Statement | None
 
     def value(self):
         return SimpleNamespace(condition=self.condition, then_block=self.then_block, else_block=self.else_block)
@@ -391,7 +391,7 @@ class IfStatement(Statement):
 
 class WhileStatement(Statement):
     condition: Expression | ValueNode
-    block: StatementBlock
+    block: Statement
 
     def value(self):
         return SimpleNamespace(condition=self.condition, block=self.block)

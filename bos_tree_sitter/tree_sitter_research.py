@@ -168,7 +168,7 @@ def main2():
             print(completion)
 
 def main3():
-    with open('../bos/example_files/Units/legcom.bos', 'rb') as f:
+    with open('../bos/example_files/Units/legaap.bos', 'rb') as f:
         data = f.read()
 
     bos_lang = tree_sitter.Language(tree_sitter_bos.language())
