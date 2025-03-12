@@ -87,6 +87,15 @@ class TreeSitterBosVisitor:
         raise NotImplementedError(f'visit not implemented for object {repr(obj)}')
 
     @visit.register
+    def _visit_tree(self, tree: tree_sitter.Tree):
+        return self.visit_node_type(tree.root_node.type, tree.root_node)
+
+    @visit.register
+    def _visit_list(self, items: list):
+        results = (self.visit(item) for item in items if item)
+        return [r for r in results if r]
+
+    @visit.register
     def _visit_node(self, node: tree_sitter.Node):
         target_type = node.type
         while (
@@ -97,15 +106,6 @@ class TreeSitterBosVisitor:
             target_type = self.sub_to_supertype_map[target_type]
 
         return self.visit_node_type(target_type, node)
-
-    @visit.register
-    def _visit_list(self, items: list):
-        results = (self.visit(item) for item in items if item)
-        return [r for r in results if r]
-
-    @visit.register
-    def _visit_tree(self, tree: tree_sitter.Tree):
-        return self.visit_node_type(tree.root_node.type, tree.root_node)
 
     @ValueDispatch
     def visit_node_type(self, node_type: str, node: tree_sitter.Node):
