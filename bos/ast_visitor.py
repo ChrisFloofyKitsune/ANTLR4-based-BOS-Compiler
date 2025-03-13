@@ -150,7 +150,7 @@ class ASTVisitor(BosParserVisitor):
 
     def visitStatementBlock(self, ctx: BosParser.StatementBlockContext):
         return nodes.StatementBlock(
-            statements=self.visitTypedChildren(ctx, BosParser.StatementContext),
+            block_level_nodes=self.visitTypedChildren(ctx, BosParser.StatementContext),
             parser_node=ctx
         )
 
@@ -223,7 +223,7 @@ class ASTVisitor(BosParserVisitor):
             return nodes.AssignStatement(
                 variable=var_name,
                 expression=nodes.BinaryExpression(
-                    operand1=nodes.VarNameTerm(var_name=var_name),
+                    operand1=var_name,
                     op=nodes.ExpressionOp.ADD,
                     operand2=nodes.Constant(value=1)
                 ),
@@ -237,7 +237,7 @@ class ASTVisitor(BosParserVisitor):
                 variable=self.visit(var_name),
                 expression=nodes.BinaryExpression(
                     operand1=var_name,
-                    op=nodes.ExpressionOp.SUB,
+                    op=nodes.ExpressionOp.MINUS,
                     operand2=nodes.Constant(value=1)
                 ),
                 parser_node=dec_ctx
@@ -260,7 +260,7 @@ class ASTVisitor(BosParserVisitor):
 
     def visitFile(self, ctx: BosParser.FileContext):
         return nodes.File(
-            declarations=self.visitTypedChildren(ctx, BosParser.DeclarationContext),
+            top_level_nodes=self.visitTypedChildren(ctx, BosParser.DeclarationContext),
             parser_node=ctx
         )
 
@@ -283,10 +283,7 @@ class ASTVisitor(BosParserVisitor):
         )
 
     def visitVarNameTerm(self, ctx: BosParser.VarNameTermContext):
-        return nodes.VarNameTerm(
-            var_name=self.visit(ctx.varName()),
-            parser_node=ctx
-        )
+        return self.visit(ctx.varName())
 
     def visitGetCall(self, ctx: BosParser.GetCallContext):
         return nodes.GetCall(

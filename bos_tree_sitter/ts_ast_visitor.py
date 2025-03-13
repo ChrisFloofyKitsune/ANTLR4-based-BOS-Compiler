@@ -1,12 +1,14 @@
 import operator
 import warnings
 from functools import singledispatchmethod, reduce
+from types import NoneType
 from typing import Any, ClassVar
 
 import tree_sitter
 import tree_sitter_bos
 
 from bos import ast_nodes
+from bos.ast_nodes import preproc_nodes
 from value_dispatch import ValueDispatch
 
 _bos_lang = tree_sitter.Language(tree_sitter_bos.language())
@@ -87,6 +89,10 @@ class TreeSitterBosVisitor:
         raise NotImplementedError(f'visit not implemented for object {repr(obj)}')
 
     @visit.register
+    def _visit_none_type(self, _: NoneType):
+        return None
+
+    @visit.register
     def _visit_tree(self, tree: tree_sitter.Tree):
         return self.visit_node_type(tree.root_node.type, tree.root_node)
 
@@ -150,7 +156,10 @@ class TreeSitterBosVisitor:
 
     @visit_node_type.register('compound_statement')
     def _visit_compound_statement(self, node: tree_sitter.Node):
-        return ast_nodes.StatementBlock(statements=self.visit(node.named_children), parser_node=node)
+        return ast_nodes.StatementBlock(
+            block_level_nodes=self.visit(node.named_children),
+            parser_node=node
+        )
 
     @visit_node_type.register('func_name')
     def _visit_func_name(self, node: tree_sitter.Node):
@@ -249,15 +258,10 @@ class TreeSitterBosVisitor:
 
         return ast_nodes.BinaryExpression(operand1=left, operand2=right, op=op, parser_node=node)
 
-    @visit_node_type.register('var_name_term')
-    def _visit_var_name_term(self, node: tree_sitter.Node):
-        return ast_nodes.VarNameTerm(var_name=self._visit_var_name(node), parser_node=node)
-
     @visit_node_type.register('source_file')
     def _visit_source_file(self, node: tree_sitter.Node):
         declarations = self.visit(node.named_children)
-        declarations = [d for d in declarations if not isinstance(d, ast_nodes.UndefNode)]
-        return ast_nodes.File(declarations=declarations, parser_node=node)
+        return ast_nodes.File(top_level_nodes=declarations, parser_node=node)
 
     @visit_node_type.register('if_statement')
     def _visit_if_statement(self, node: tree_sitter.Node):
@@ -330,7 +334,7 @@ class TreeSitterBosVisitor:
         return ast_nodes.AssignStatement(
             variable=var_name,
             expression=ast_nodes.BinaryExpression(
-                operand1=ast_nodes.VarNameTerm(var_name=var_name),
+                operand1=var_name,
                 op=ast_nodes.ExpressionOp.ADD,
                 operand2=ast_nodes.Constant(1)
             ),
@@ -344,7 +348,7 @@ class TreeSitterBosVisitor:
         return ast_nodes.AssignStatement(
             variable=var_name,
             expression=ast_nodes.BinaryExpression(
-                operand1=ast_nodes.VarNameTerm(var_name=var_name),
+                operand1=var_name,
                 op=ast_nodes.ExpressionOp.MINUS,
                 operand2=ast_nodes.Constant(1)
             ),
@@ -367,3 +371,82 @@ class TreeSitterBosVisitor:
             expression=self.visit(node.named_child(0)),
             parser_node=node
         )
+
+    @visit_node_type.register('string_literal')
+    def _visit_string_literal(self, node: tree_sitter.Node):
+        return ast_nodes.StringLiteral(
+            string=node.named_child(0).text.decode('utf-8'),
+            parser_node=node
+        )
+
+    @visit_node_type.register('define_name')
+    def _visit_define_name(self, node: tree_sitter.Node):
+        return preproc_nodes.DefineName(
+            name=node.text.decode('utf-8'),
+            parser_node=node
+        )
+
+    @visit_node_type.register('preproc_arg')
+    def _visit_preproc_arg(self, node: tree_sitter.Node):
+        return preproc_nodes.PreprocArg(
+            string=node.text.decode('utf-8'),
+            parser_node=node
+        )
+
+    @visit_node_type.register('preproc_include')
+    def _visit_preproc_include(self, node: tree_sitter.Node):
+        return preproc_nodes.PreprocInclude(
+            path=self.visit(node.named_child(0)),
+            parser_node=node
+        )
+
+    @visit_node_type.register('preproc_def')
+    def _visit_preproc_def(self, node: tree_sitter.Node):
+        return preproc_nodes.PreprocDefine(
+            name=self.visit(node.child_by_field_name('name')),
+            value=self.visit(node.child_by_field_name('value')),
+            parser_node=node
+        )
+
+    @visit_node_type.register('preproc_function_def')
+    def _visit_preproc_function_def(self, node: tree_sitter.Node):
+        return preproc_nodes.PreprocFunctionDefine(
+            name=self.visit(node.child_by_field_name('name')),
+            parameters=self.visit(node.child_by_field_name('parameters')),
+            value=self.visit(node.child_by_field_name('value')),
+            parser_node=node
+        )
+
+    @visit_node_type.register('preproc_undef')
+    def _visit_preproc_undef(self, node: tree_sitter.Node):
+        return preproc_nodes.PreprocUndef(
+            name=self.visit(node.child_by_field_name('name')),
+            parser_node=node
+        )
+
+    @visit_node_type.register('system_lib_string')
+    def _visit_system_lib_string(self, node: tree_sitter.Node):
+        return preproc_nodes.SystemLibString(
+            string=node.named_child(0).text.decode('utf-8'),
+            parser_node=node
+        )
+
+    @visit_node_type.register('preproc_params')
+    def _visit_preproc_params(self, node: tree_sitter.Node):
+        result = self.visit(node.named_children)
+        if node.child_by_field_name('ellipsis'):
+            result.append('...')
+        return result
+
+    @visit_node_type.register('preproc_argument_list')
+    def _visit_preproc_argument_list(self, node: tree_sitter.Node):
+        return self.visit(node.named_children)
+
+    @visit_node_type.register('preproc_directive')
+    def _visit_preproc_directive(self, node: tree_sitter.Node):
+        return preproc_nodes.PreprocDirective(
+            directive=self.visit(node.child_by_field_name('directive')),
+            argument=self.visit(node.child_by_field_name('argument')),
+            parser_node=node
+        )
+

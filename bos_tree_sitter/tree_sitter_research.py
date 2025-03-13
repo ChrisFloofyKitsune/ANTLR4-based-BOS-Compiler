@@ -168,7 +168,7 @@ def main2():
             print(completion)
 
 def main3():
-    with open('../bos/example_files/Units/legaap.bos', 'rb') as f:
+    with open('../bos/example_files/rockwater.h', 'rb') as f:
         data = f.read()
 
     bos_lang = tree_sitter.Language(tree_sitter_bos.language())
@@ -176,7 +176,8 @@ def main3():
     tree = parser.parse(data)
 
     visitor = TreeSitterBosVisitor()
-    print(visitor.visit(tree).model_dump_json(indent=2))
+    ast_node_tree = visitor.visit(tree)
+    print(ast_node_tree.model_dump_json(indent=2))
 
 if __name__ == "__main__":
     # main()
