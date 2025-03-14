@@ -1,4 +1,5 @@
 import os.path
+import pdb
 
 import sys
 import time
@@ -12,7 +13,7 @@ from cob.compiler.cob_compiler import CobCompiler
 
 
 def main():
-    examples_dir = Path('./example_files/Raptors')
+    examples_dir = Path('./example_files/')
     preprocessed_dir = Path('./preprocessed')
     preprocessed_dir.mkdir(exist_ok=True)
 

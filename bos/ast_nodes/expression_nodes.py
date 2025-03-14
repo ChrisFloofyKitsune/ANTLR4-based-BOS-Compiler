@@ -3,6 +3,7 @@ from types import SimpleNamespace
 
 from bos.ast_nodes.base_nodes import ValueNode
 from bos.ast_nodes.enums import ExpressionOp
+from bos.ast_nodes.preproc_nodes import PreprocCallExpression
 
 
 class Expression(ValueNode, ABC):
@@ -18,11 +19,12 @@ class UnaryExpression(Expression):
 
 
 class BinaryExpression(Expression):
-    operand1: ValueNode
+    left: ValueNode
     op: ExpressionOp
-    operand2: ValueNode
+    right: ValueNode
 
     def get_value(self):
-        return SimpleNamespace(operand1=self.operand1, op=self.op, operand2=self.operand2)
+        return SimpleNamespace(operand1=self.left, op=self.op, operand2=self.right)
 
-
+class MacroCallExpression(PreprocCallExpression, Expression):
+    ...

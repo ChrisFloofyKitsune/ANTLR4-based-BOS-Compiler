@@ -38,6 +38,64 @@ class ASTVisitor(BosParserVisitor):
         nodes.ExpressionOp.LOGICAL_XOR: lambda a, b: int(bool(a) ^ bool(b))
     }
 
+    KEYWORD_MAPPING = {
+        BosParser.CALL_SCRIPT: nodes.Keyword.CALL_SCRIPT,
+        BosParser.START_SCRIPT: nodes.Keyword.START_SCRIPT,
+
+        BosParser.SIGNAL: nodes.Keyword.SIGNAL,
+        BosParser.SET_SIGNAL_MASK: nodes.Keyword.SET_SIGNAL_MASK,
+
+        BosParser.SLEEP: nodes.Keyword.SLEEP,
+
+        BosParser.SET: nodes.Keyword.SET,
+        BosParser.GET: nodes.Keyword.GET,
+
+        BosParser.SPIN: nodes.Keyword.SPIN,
+        BosParser.STOP_SPIN: nodes.Keyword.STOP_SPIN,
+
+        BosParser.TURN: nodes.Keyword.TURN,
+        BosParser.MOVE: nodes.Keyword.MOVE,
+
+        BosParser.WAIT_FOR_TURN: nodes.Keyword.WAIT_FOR_TURN,
+        BosParser.WAIT_FOR_MOVE: nodes.Keyword.WAIT_FOR_MOVE,
+
+        BosParser.HIDE: nodes.Keyword.HIDE,
+        BosParser.SHOW: nodes.Keyword.SHOW,
+
+        BosParser.EMIT_SFX: nodes.Keyword.EMIT_SFX,
+        BosParser.EXPLODE: nodes.Keyword.EXPLODE,
+
+        BosParser.ATTACH_UNIT: nodes.Keyword.ATTACH_UNIT,
+        BosParser.DROP_UNIT: nodes.Keyword.DROP_UNIT,
+
+        # effectively removed from the language, these do nothing
+        BosParser.CACHE: nodes.Keyword.CACHE,
+        BosParser.DONT_CACHE: nodes.Keyword.DONT_CACHE,
+        BosParser.DONT_SHADOW: nodes.Keyword.DONT_SHADE,
+        BosParser.DONT_SHADE: nodes.Keyword.DONT_SHADE,
+    }
+
+    OPERATOR_MAPPING = {
+        BosParser.OP_ADD: nodes.ExpressionOp.ADD,
+        BosParser.OP_MINUS: nodes.ExpressionOp.MINUS,
+        BosParser.OP_MULT: nodes.ExpressionOp.MULT,
+        BosParser.OP_DIV: nodes.ExpressionOp.DIV,
+        BosParser.OP_MOD: nodes.ExpressionOp.MOD,
+        BosParser.LOGICAL_XOR: nodes.ExpressionOp.LOGICAL_XOR,
+        BosParser.LOGICAL_OR: nodes.ExpressionOp.LOGICAL_OR,
+        BosParser.LOGICAL_AND: nodes.ExpressionOp.LOGICAL_AND,
+        BosParser.LOGICAL_NOT: nodes.ExpressionOp.LOGICAL_NOT,
+        BosParser.BITWISE_XOR: nodes.ExpressionOp.BITWISE_XOR,
+        BosParser.BITWISE_OR: nodes.ExpressionOp.BITWISE_OR,
+        BosParser.BITWISE_AND: nodes.ExpressionOp.BITWISE_AND,
+        BosParser.COMP_EQUAL: nodes.ExpressionOp.COMP_EQUAL,
+        BosParser.COMP_NOT_EQUAL: nodes.ExpressionOp.COMP_NOT_EQUAL,
+        BosParser.COMP_GREATER: nodes.ExpressionOp.COMP_GREATER,
+        BosParser.COMP_GREATER_EQUAL: nodes.ExpressionOp.COMP_GREATER_EQUAL,
+        BosParser.COMP_LESS_EQUAL: nodes.ExpressionOp.COMP_LESS_EQUAL,
+        BosParser.COMP_LESS: nodes.ExpressionOp.COMP_LESS,
+    }
+
     def __init__(self, *args, enable_constant_folding=False, **kwargs):
         self.enable_constant_folding = enable_constant_folding
         super().__init__(*args, **kwargs)
@@ -58,6 +116,8 @@ class ASTVisitor(BosParserVisitor):
         result = super().visitChildren(node)
         if isinstance(result, nodes.ASTNode):
             return result
+        if result is None:
+            return None
 
         name = node.__class__.__name__.removesuffix('Context')
 
@@ -102,7 +162,7 @@ class ASTVisitor(BosParserVisitor):
         return nodes.ArgName(name=ctx.getText(), parser_node=ctx)
 
     def visitUnaryExpr(self, ctx: BosParser.UnaryExprContext):
-        op = nodes.ExpressionOp(ctx.op.type)
+        op = self.OPERATOR_MAPPING.get(ctx.op.type, None)
         operand = self.visit(ctx.operand)
 
         if self.enable_constant_folding and isinstance(operand, nodes.Constant):
@@ -118,7 +178,7 @@ class ASTVisitor(BosParserVisitor):
         )
 
     def visitBinaryExpr(self, ctx: BosParser.BinaryExprContext):
-        op = nodes.ExpressionOp(ctx.op.type)
+        op = self.OPERATOR_MAPPING.get(ctx.op.type, None)
         operand1 = self.visit(ctx.operand1)
         operand2 = self.visit(ctx.operand2)
 
@@ -136,9 +196,9 @@ class ASTVisitor(BosParserVisitor):
             )
 
         return nodes.BinaryExpression(
-            operand1=operand1,
+            left=operand1,
             op=op,
-            operand2=operand2,
+            right=operand2,
             parser_node=ctx
         )
 
@@ -150,12 +210,12 @@ class ASTVisitor(BosParserVisitor):
 
     def visitStatementBlock(self, ctx: BosParser.StatementBlockContext):
         return nodes.StatementBlock(
-            block_level_nodes=self.visitTypedChildren(ctx, BosParser.StatementContext),
+            block_level_nodes=[c for c in self.visitTypedChildren(ctx, BosParser.StatementContext) if c],
             parser_node=ctx
         )
 
     def visitKeywordStatementInner(self, ctx: ParserRuleContext):
-        keyword = nodes.Keyword(getattr(ctx, 'kw').type)
+        keyword = self.KEYWORD_MAPPING.get(getattr(ctx, 'kw').type, None)
         args = self._extract_args(ctx)
 
         if (expr_list_ctx := ctx.getChild(0, BosParser.ExpressionListContext)) is not None:
@@ -163,9 +223,9 @@ class ASTVisitor(BosParserVisitor):
 
         statement_class = nodes.KeywordStatement
         if keyword == nodes.Keyword.CALL_SCRIPT:
-            statement_class = nodes.CallStatement
+            statement_class = nodes.CallScriptStatement
         elif keyword == nodes.Keyword.START_SCRIPT:
-            statement_class = nodes.StartStatement
+            statement_class = nodes.StartScriptStatement
 
         # noinspection PyArgumentList
         return statement_class(
@@ -223,9 +283,9 @@ class ASTVisitor(BosParserVisitor):
             return nodes.AssignStatement(
                 variable=var_name,
                 expression=nodes.BinaryExpression(
-                    operand1=var_name,
+                    left=nodes.VarNameTerm(var_name=var_name),
                     op=nodes.ExpressionOp.ADD,
-                    operand2=nodes.Constant(value=1)
+                    right=nodes.Constant(value=1)
                 ),
                 parser_node=inc_ctx
             )
@@ -236,9 +296,9 @@ class ASTVisitor(BosParserVisitor):
             return nodes.AssignStatement(
                 variable=self.visit(var_name),
                 expression=nodes.BinaryExpression(
-                    operand1=var_name,
+                    left=nodes.VarNameTerm(var_name=var_name),
                     op=nodes.ExpressionOp.MINUS,
-                    operand2=nodes.Constant(value=1)
+                    right=nodes.Constant(value=1)
                 ),
                 parser_node=dec_ctx
             )
@@ -259,6 +319,8 @@ class ASTVisitor(BosParserVisitor):
         return None
 
     def visitFile(self, ctx: BosParser.FileContext):
+        print('visiting file with # of children:', ctx.getChildCount())
+
         return nodes.File(
             top_level_nodes=self.visitTypedChildren(ctx, BosParser.DeclarationContext),
             parser_node=ctx
@@ -283,7 +345,10 @@ class ASTVisitor(BosParserVisitor):
         )
 
     def visitVarNameTerm(self, ctx: BosParser.VarNameTermContext):
-        return self.visit(ctx.varName())
+        return nodes.VarNameTerm(
+            var_name=self.visit(ctx.varName()),
+            parser_node=ctx
+        )
 
     def visitGetCall(self, ctx: BosParser.GetCallContext):
         return nodes.GetCall(
@@ -296,34 +361,16 @@ class ASTVisitor(BosParserVisitor):
 def main():
     from bos_loader import BosLoader
     loader = BosLoader(
-        'example_files/Units/armestor_clean.bos',
-        enable_constant_folding=True
-    )
-    loader.load_file()
-
-    ast: nodes.File = loader.ast_node_tree
-    print(
-        json.dumps(
-            ast.function_declarations[-1].block[-2].model_dump(),
-            # indent=2,
-            default=lambda x: vars(x) if isinstance(x, SimpleNamespace) else repr(x)
-        )
-    )
-
-    loader = BosLoader(
-        'example_files/Units/armestor.bos',
+        'example_files/Units/armaak_clean.bos',
         enable_constant_folding=False
     )
-    loader.load_file()
+    print(loader.load_file())
 
-    ast: nodes.File = loader.ast_node_tree
-    print(
-        json.dumps(
-            ast.function_declarations[-1].block[-2].model_dump(),
-            # indent=2,
-            default=lambda x: vars(x) if isinstance(x, SimpleNamespace) else repr(x)
-        )
+    loader = BosLoader(
+        'preprocessed/armaak_clean.preprocessed.bos',
+        enable_constant_folding=False
     )
+    print(loader.load_file())
 
 
 if __name__ == '__main__':

@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum, IntEnum
 
 
-class ExpressionOp(Enum):
+class ExpressionOp(StrEnum):
     MULT = '*'
     DIV = '/'
     MOD = '%'
@@ -28,7 +28,7 @@ class ExpressionOp(Enum):
         return f'ExpressionOp.{self.name}'
 
 
-class Keyword(Enum):
+class Keyword(StrEnum):
     TURN = 'turn'
     AROUND = 'around'
     MOVE = 'move'
@@ -68,7 +68,7 @@ class Keyword(Enum):
         return f'Keyword.{self.name}'
 
 
-class AxisEnum(Enum):
+class AxisEnum(IntEnum):
     X = 0
     Y = 1
     Z = 2

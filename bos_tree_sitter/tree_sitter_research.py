@@ -1,12 +1,19 @@
+import difflib
+import json
 import os
+import pdb
 import statistics
+import sys
 import time
+import traceback
 from itertools import pairwise
 from pathlib import Path
 
+import pydantic_core
 import tree_sitter
 import tree_sitter_bos
 
+from bos.bos_loader import BosLoader
 from bos.bos_preprocessor import BosPreprocessor
 from bos_tree_sitter.ts_ast_visitor import TreeSitterBosVisitor
 
@@ -30,7 +37,7 @@ def main():
     print("Min/Max:", min(parse_time_stats), '/', max(parse_time_stats))
 
 
-def walk_files(path: Path, extensions: list[str]):
+def walk_files(path: str | os.PathLike[str], extensions: list[str]):
     for dirpath, _, filenames in os.walk(path):
         for file in filenames:
             if Path(file).suffix in extensions:
@@ -168,16 +175,63 @@ def main2():
             print(completion)
 
 def main3():
-    with open('../bos/example_files/rockwater.h', 'rb') as f:
-        data = f.read()
+    # with open('../bos/example_files/debug.h', 'rb') as f:
+    #     data = f.read()
 
-    bos_lang = tree_sitter.Language(tree_sitter_bos.language())
-    parser = tree_sitter.Parser(bos_lang)
-    tree = parser.parse(data)
+    for file in walk_files('../bos/preprocessed', ['.bos', '.h']):
+        if 'array' in str(file):
+            continue
 
-    visitor = TreeSitterBosVisitor()
-    ast_node_tree = visitor.visit(tree)
-    print(ast_node_tree.model_dump_json(indent=2))
+        print('Processing', file)
+        data = open(file, 'rb').read()
+
+        bos_lang = tree_sitter.Language(tree_sitter_bos.language())
+        parser = tree_sitter.Parser(bos_lang)
+        tree = parser.parse(data)
+
+        visitor = TreeSitterBosVisitor()
+        ast_node_tree = visitor.visit(tree)
+        new_ast_dict = ast_node_tree.model_dump()
+        # remove any fancy new PreprocNode stuff
+
+        def purge_preproc_nodes(ast_dict):
+            new_values = {}
+            for key, value in ast_dict.items():
+                if 'Preproc' in key:
+                    continue
+
+                if isinstance(value, dict):
+                    value = purge_preproc_nodes(value)
+                    if value is not None and len(value) > 0:
+                        new_values[key] = purge_preproc_nodes(value)
+                elif isinstance(value, list):
+                    list_values = []
+                    for item in value:
+                        if isinstance(item, dict):
+                            list_values.append(purge_preproc_nodes(item))
+                        else:
+                            list_values.append(item)
+                    new_values[key] = [v for v in list_values if v]
+                else:
+                    new_values[key] = value
+            return new_values
+
+        cleaned_ast = purge_preproc_nodes(new_ast_dict)
+
+        bos_loader = BosLoader(file)
+        prev_version_ast = bos_loader.load_file()
+
+        if cleaned_ast != prev_version_ast.model_dump():
+            print('ASTs do not match')
+
+            for diff in difflib.unified_diff(
+                a=prev_version_ast.model_dump_json(indent=2).splitlines(),
+                b=json.dumps(cleaned_ast, indent=2).splitlines(),
+            ):
+                print(diff)
+            return
+
+        # print(ast_node_tree.model_dump_json(indent=2))
 
 if __name__ == "__main__":
     # main()

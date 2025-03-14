@@ -6,7 +6,8 @@ from typing import ClassVar, Literal, Any
 
 from pydantic import model_serializer
 
-from bos.ast_nodes.base_nodes import ValueNode, ASTNode
+from bos.ast_nodes.name_nodes import VarName
+from bos.ast_nodes.base_nodes import ValueNode
 from bos.ast_nodes.enums import AxisEnum
 from code_error import CodeError
 from code_location import CodeLocation
@@ -113,16 +114,26 @@ class GetTerm(VaryingTerm):
         return self.get_call
 
 
-class GetCall(ASTNode):
+class GetCall(ValueNode):
     value_idx: ValueNode
     args: list[ValueNode | None]
 
     def get_value(self) -> Any:
-        if len(self.args) == 0:
+        args = [a for a in self.args if a]
+        if len(args) == 0:
             return SimpleNamespace(value_idx=self.value_idx)
 
-        return SimpleNamespace(value_idx=self.value_idx, args=self.args)
+        return SimpleNamespace(value_idx=self.value_idx, args=args)
 
+class VarNameTerm(VaryingTerm):
+    var_name: VarName
+
+    def get_value(self):
+        return self.var_name
+
+    @model_serializer()
+    def serialize(self) -> str:
+        return f'{self.node_name}({repr(self.var_name)})'
 
 class RandTerm(VaryingTerm):
     min: ValueNode

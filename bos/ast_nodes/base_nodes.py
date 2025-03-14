@@ -6,6 +6,7 @@ from typing import Any, Union
 from pydantic import BaseModel, computed_field, model_serializer, Field
 
 
+
 class ASTNode(BaseModel, ABC):
 
     @computed_field
@@ -34,6 +35,15 @@ class ASTNode(BaseModel, ABC):
                 if isinstance(v, list) else v
                 for k, v in value.items()
             }
+
+        from bos.ast_nodes.statement_nodes import StatementBlock
+        if (
+                isinstance(self, StatementBlock)
+                and isinstance(value, list)
+                and len(value) == 1
+        ):
+            return value[0].model_dump()
+
 
         return {self.node_name: value}
 

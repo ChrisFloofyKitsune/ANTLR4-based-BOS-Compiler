@@ -1,11 +1,13 @@
+import itertools
+from itertools import chain, repeat
 import logging
 from array import array
 from copy import copy
 from functools import singledispatchmethod
+from itertools import islice
 from typing import cast
 
 import bos.ast_nodes.expression_nodes
-import bos.ast_nodes.value_nodes
 from bos import ast_nodes as nodes
 from cob.cob_file import CobFile
 from cob.compiler.name_registry import NameRegistry, NameType
@@ -15,17 +17,18 @@ from code_location import CodeLocation
 
 log = logging.getLogger(__name__)
 
+
 class NodeNameRegistry(NameRegistry[nodes.NameNode]):
     def on_name_missing(self, name):
         raise CodeError(
             f'name "{str(name)}" has not been defined',
             CodeLocation.from_parser_node(name.parser_node)
         )
-    
+
     def on_name_collision(self, name: nodes.NameNode, name_type: NameType, existing_type: NameType):
         if (
-            name_type == existing_type
-            and name_type in (NameType.STATIC, NameType.PIECE)
+                name_type == existing_type
+                and name_type in (NameType.STATIC, NameType.PIECE)
         ):
             log.warning(
                 'Skipping duplicate declaration of global name %s "%s". Location: %s',
@@ -39,6 +42,7 @@ class NodeNameRegistry(NameRegistry[nodes.NameNode]):
             f'name is already being used by a {existing_type.description} declaration',
             CodeLocation.from_parser_node(name.parser_node)
         )
+
 
 class CobCompiler:
     def __init__(self, /, raise_exception_on_unhandled_node=True):
@@ -171,10 +175,10 @@ class CobCompiler:
             match arg:
                 case _ if isinstance(arg, nodes.NameNode):
                     post_opcode_vals.insert(0, self.name_registry.lookup(cast(nodes.NameNode, arg))[0])
-                case _ if isinstance(arg, bos.ast_nodes.value_nodes.Axis):
-                    post_opcode_vals.insert(0, cast(bos.ast_nodes.value_nodes.Axis, arg).axis.value)
+                case _ if isinstance(arg, nodes.Axis):
+                    post_opcode_vals.insert(0, cast(nodes.Axis, arg).axis.value)
                 case _ if arg is None:
-                    self._handle_node(bos.ast_nodes.value_nodes.Constant(0))
+                    self._handle_node(nodes.Constant(0))
                 case _:
                     self._handle_node(arg)
 
@@ -191,9 +195,9 @@ class CobCompiler:
             self.name_registry.register(var, NameType.LOCAL)
             self.code.append(CobOpCode.CREATE_LOCAL_VAR)
 
-    @_handle_node.register(nodes.CallStatement)
-    @_handle_node.register(nodes.StartStatement)
-    def _handle_node__function_call(self, statement: nodes.CallStatement | nodes.StartStatement):
+    @_handle_node.register(nodes.CallScriptStatement)
+    @_handle_node.register(nodes.StartScriptStatement)
+    def _handle_node__function_call(self, statement: nodes.CallScriptStatement | nodes.StartScriptStatement):
         for arg in statement.args[1:]:
             self._handle_node(arg)
 
@@ -283,17 +287,17 @@ class CobCompiler:
 
     @_handle_node.register
     def _handle_node__binary_expression(self, expr: nodes.BinaryExpression):
-        self._handle_node(expr.operand1)
-        self._handle_node(expr.operand2)
+        self._handle_node(expr.left)
+        self._handle_node(expr.right)
         self.code.append(CobOpCode.from_binary_expression_op(expr.op))
 
     # terms
     @_handle_node.register
-    def _handle_node__constant(self, constant: bos.ast_nodes.value_nodes.Constant):
+    def _handle_node__constant(self, constant: nodes.Constant):
         self.code.extend((CobOpCode.PUSH_CONSTANT, constant.int32_value()))
 
     @_handle_node.register
-    def _handle_node__var_name_term(self, term: bos.ast_nodes.value_nodes.VarNameTerm):
+    def _handle_node__var_name_term(self, term: nodes.VarNameTerm):
         idx, var_type = self.name_registry.lookup(term.var_name)
         match var_type:
             case NameType.STATIC:
@@ -305,22 +309,22 @@ class CobCompiler:
         self.code.append(idx)
 
     @_handle_node.register
-    def _handle_node__rand_term(self, rand: bos.ast_nodes.value_nodes.RandTerm):
+    def _handle_node__rand_term(self, rand: nodes.RandTerm):
         self._handle_node(rand.min)
         self._handle_node(rand.max)
         self.code.append(CobOpCode.RAND)
 
     @_handle_node.register
-    def _handle_node__get_term(self, get_term: bos.ast_nodes.value_nodes.GetTerm):
+    def _handle_node__get_term(self, get_term: nodes.GetTerm):
         self._handle_node(get_term.get_call)
 
     @_handle_node.register
-    def _handle_node__get_call(self, get_call: bos.ast_nodes.value_nodes.GetCall):
+    def _handle_node__get_call(self, get_call: nodes.GetCall):
         self._handle_node(get_call.value_idx)
 
         if any(arg is not None for arg in get_call.args):
-            for arg in get_call.args:
-                self._handle_node(arg) if arg is not None else bos.ast_nodes.value_nodes.Constant(0)
+            for arg in islice(chain(get_call.args, repeat(None)), 4):
+                self._handle_node(arg) if arg is not None else nodes.Constant(0)
             self.code.append(CobOpCode.GET)
         else:
             self.code.append(CobOpCode.GET_UNIT_VALUE)

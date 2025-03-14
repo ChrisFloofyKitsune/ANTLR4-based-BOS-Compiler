@@ -150,9 +150,9 @@ class BosLoader:
 
 if __name__ == '__main__':
     def main():
-        loader = BosLoader('./example_files/Units/legcom.bos')
-        loader.dump_preprocessed_file('./preprocessed_blah.txt')
-        # print(loader.load_file().model_dump())
+        loader = BosLoader('./example_files/Raptors/e_raptorq.bos')
+        # loader.dump_preprocessed_file('./preprocessed_blah.txt')
+        print(loader.load_file().model_dump_json(indent=2))
 
 
     main()

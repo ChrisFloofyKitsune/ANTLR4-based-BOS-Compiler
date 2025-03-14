@@ -182,7 +182,7 @@ class TreeSitterBosVisitor:
         func_name = self.visit(node.child_by_field_name('function'))
         args = self.visit(node.child_by_field_name('arguments').named_children)
 
-        return ast_nodes.CallStatement(
+        return ast_nodes.CallScriptStatement(
             keyword=ast_nodes.Keyword.CALL_SCRIPT,
             args=[func_name] + args,
             parser_node=node
@@ -193,7 +193,7 @@ class TreeSitterBosVisitor:
         func_name = self.visit(node.child_by_field_name('function'))
         args = self.visit(node.child_by_field_name('arguments').named_children)
 
-        return ast_nodes.StartStatement(
+        return ast_nodes.StartScriptStatement(
             keyword=ast_nodes.Keyword.START_SCRIPT,
             args=[func_name] + args,
             parser_node=node
@@ -248,15 +248,18 @@ class TreeSitterBosVisitor:
 
     @visit_node_type.register('binary_expression')
     def _visit_binary_expression(self, node: tree_sitter.Node):
-        left = self.visit(node.child_by_field_name('left'))
-        right = self.visit(node.child_by_field_name('right'))
-        op = self.operator_map.get(node.child_by_field_name('operator').type, None)
-        if op is None:
-            op_text = node.child_by_field_name('operator').type
-            warnings.warn(f'Could not find operator for binary expression {op_text}', UserWarning)
-            return None
+        left, op, right = self._extract_binary_expr_parts(node)
 
-        return ast_nodes.BinaryExpression(operand1=left, operand2=right, op=op, parser_node=node)
+        return ast_nodes.BinaryExpression(
+            left=left,
+            op=op,
+            right=right,
+            parser_node=node
+        )
+
+    def _get_binary_expr_parts(self, node):
+        left = self.visit(node.child_by_field_name('left'))
+        return left
 
     @visit_node_type.register('source_file')
     def _visit_source_file(self, node: tree_sitter.Node):
@@ -312,6 +315,13 @@ class TreeSitterBosVisitor:
             max=self.visit(node.child_by_field_name('upper_bound')),
         )
 
+    @visit_node_type.register('var_name_term')
+    def _visit_var_name_term(self, node: tree_sitter.Node):
+        return ast_nodes.VarNameTerm(
+            var_name=ast_nodes.VarName(name=node.text.decode('utf-8'), parser_node=node),
+            parser_node=node
+        )
+
     @visit_node_type.register('assign_statement')
     def _visit_assign_statement(self, node: tree_sitter.Node):
         var_name_node = node.child_by_field_name('name')
@@ -334,9 +344,9 @@ class TreeSitterBosVisitor:
         return ast_nodes.AssignStatement(
             variable=var_name,
             expression=ast_nodes.BinaryExpression(
-                operand1=var_name,
+                left=var_name,
                 op=ast_nodes.ExpressionOp.ADD,
-                operand2=ast_nodes.Constant(1)
+                right=ast_nodes.Constant(1)
             ),
             parser_node=node
         )
@@ -348,9 +358,9 @@ class TreeSitterBosVisitor:
         return ast_nodes.AssignStatement(
             variable=var_name,
             expression=ast_nodes.BinaryExpression(
-                operand1=var_name,
+                left=var_name,
                 op=ast_nodes.ExpressionOp.MINUS,
-                operand2=ast_nodes.Constant(1)
+                right=ast_nodes.Constant(1)
             ),
             parser_node=node
         )
@@ -364,7 +374,7 @@ class TreeSitterBosVisitor:
 
     @visit_node_type.register('return_statement')
     def _visit_return_statement(self, node: tree_sitter.Node):
-        if node.named_child(0) is None:
+        if node.named_child_count == 0:
             return ast_nodes.ReturnStatement(expression=None, parser_node=node)
 
         return ast_nodes.ReturnStatement(
@@ -389,7 +399,7 @@ class TreeSitterBosVisitor:
     @visit_node_type.register('preproc_arg')
     def _visit_preproc_arg(self, node: tree_sitter.Node):
         return preproc_nodes.PreprocArg(
-            string=node.text.decode('utf-8'),
+            string=node.text.decode('utf-8').replace('\r', '').replace('\\', ''),
             parser_node=node
         )
 
@@ -433,10 +443,12 @@ class TreeSitterBosVisitor:
 
     @visit_node_type.register('preproc_params')
     def _visit_preproc_params(self, node: tree_sitter.Node):
-        result = self.visit(node.named_children)
-        if node.child_by_field_name('ellipsis'):
-            result.append('...')
-        return result
+        return [
+            ast_nodes.NameNode(
+                name=child.text.decode('utf-8'),
+                parser_node=child,
+            ) for child in node.named_children
+        ]
 
     @visit_node_type.register('preproc_argument_list')
     def _visit_preproc_argument_list(self, node: tree_sitter.Node):
@@ -450,3 +462,132 @@ class TreeSitterBosVisitor:
             parser_node=node
         )
 
+    @visit_node_type.register('preproc_defined')
+    def _visit_preproc_defined(self, node: tree_sitter.Node):
+        return preproc_nodes.PreprocDefinedTerm(
+            name=self.visit(node.named_child(0)),
+            parser_node=node
+        )
+
+    @visit_node_type.register('preproc_if')
+    @visit_node_type.register('preproc_elif')
+    def _visit_preproc_if(self, node: tree_sitter.Node):
+        return preproc_nodes.PreprocIf(
+            condition=self.visit(node.child_by_field_name('condition')),
+            body=self.visit(node.children_by_field_name('body')),
+            alternative=self.visit(node.child_by_field_name('alternative')),
+            parser_node=node
+        )
+
+    @visit_node_type.register('preproc_ifdef')
+    @visit_node_type.register('preproc_elifdef')
+    def _visit_preproc_ifdef(self, node: tree_sitter.Node):
+
+        cond_child = node.child_by_field_name('condition')
+
+        condition = preproc_nodes.PreprocDefinedTerm(
+            name=self.visit(node.child_by_field_name('name')),
+            parser_node=cond_child
+        )
+
+        if 'ifndef' in node.child(0).type:
+            condition = preproc_nodes.PreprocUnaryExpression(
+                operator=ast_nodes.ExpressionOp.LOGICAL_NOT,
+                operand=condition,
+                parser_node=cond_child
+            )
+
+        body = self.visit(node.children_by_field_name('body'))
+        alternative = self.visit(node.child_by_field_name('alternative'))
+
+        return preproc_nodes.PreprocIf(
+            condition=condition,
+            body=body,
+            alternative=alternative,
+            parser_node=node
+        )
+
+    @visit_node_type.register('preproc_else')
+    def _visit_preproc_else(self, node: tree_sitter.Node):
+        return self.visit(node.children_by_field_name('body'))
+
+    @visit_node_type.register('preproc_parenthesized_expression')
+    def _visit_preproc_parenthesized_expression(self, node: tree_sitter.Node):
+        return self.visit(node.named_child(0))
+
+    @visit_node_type.register('preproc_binary_expression')
+    def _visit_preproc_binary_expression(self, node: tree_sitter.Node):
+        left, op, right = self._extract_binary_expr_parts(node)
+
+        return preproc_nodes.PreprocBinaryExpression(
+            left=left,
+            operator=op,
+            right=right,
+            parser_node=node
+        )
+
+    def _extract_binary_expr_parts(self, node):
+        left = self.visit(node.child_by_field_name('left'))
+        op = self.operator_map.get(node.child_by_field_name('operator').type, None)
+        right = self.visit(node.child_by_field_name('right'))
+        if op is None:
+            op_text = node.child_by_field_name('operator').type
+            warnings.warn(f'Could not find operator for binary expression {op_text}', UserWarning)
+        return left, op, right
+
+    @visit_node_type.register('preproc_unary_expression')
+    def _visit_preproc_unary_expression(self, node: tree_sitter.Node):
+        operand = self.visit(node.child_by_field_name('argument'))
+        operator = self.operator_map[node.child_by_field_name('operator').type]
+
+        return preproc_nodes.PreprocUnaryExpression(
+            operand=operand,
+            operator=operator,
+            parser_node=node
+        )
+
+    @visit_node_type.register('preproc_call_expression')
+    def _visit_preproc_call_expression(self, node: tree_sitter.Node):
+        function = self.visit(node.child_by_field_name('function'))
+        args = self.visit(node.children_by_field_name('arg'))
+
+        return preproc_nodes.PreprocCallExpression(
+            function=function,
+            arguments=args,
+            parser_node=node
+        )
+
+    @visit_node_type.register('macro_call_expression')
+    def _visit_macro_call_expression(self, node: tree_sitter.Node):
+        return ast_nodes.MacroCallExpression(
+            function=self.visit(node.child_by_field_name('function')),
+            arguments=self.visit(node.children_by_field_name('arg')),
+            parser_node=node
+        )
+
+    @visit_node_type.register('macro_call_statement')
+    def _visit_macro_call_statement(self, node: tree_sitter.Node):
+        return ast_nodes.MacroCallStatement(
+            macro_call=self.visit(node.named_child(0)),
+            parser_node=node
+        )
+
+    @visit_node_type.register('macro_name_statement')
+    def _visit_macro_name_statement(self, node: tree_sitter.Node):
+        return ast_nodes.MacroNameStatement(
+            macro_name=self.visit(node.named_child(0)),
+            parser_node=node
+        )
+
+    @visit_node_type.register('preproc_line')
+    def _visit_preproc_line(self, node: tree_sitter.Node):
+        filename_node = node.child_by_field_name('filename')
+        filename = None
+        if filename_node:
+            filename = filename_node.text.decode('utf-8')
+
+        return preproc_nodes.PreprocLine(
+            lineno=int(node.child_by_field_name('lineno').text.decode('utf-8')),
+            filename=filename,
+            parser_node=node
+        )

@@ -1,11 +1,12 @@
 from abc import ABC
 from types import SimpleNamespace
-from typing import Generator
+from typing import Generator, Any
 
 from bos.ast_nodes.enums import Keyword
-from bos.ast_nodes.expression_nodes import Expression
+from bos.ast_nodes.expression_nodes import Expression, MacroCallExpression
 from bos.ast_nodes.base_nodes import UndefNode, BlockLevelNode, ValueNode
 from bos.ast_nodes.name_nodes import VarName, NameNode
+from bos.ast_nodes.preproc_nodes import DefineName
 
 
 class Statement(BlockLevelNode, ABC):
@@ -30,17 +31,17 @@ class StatementBlock(Statement):
 
 class KeywordStatement(Statement):
     keyword: Keyword
-    args: list[ValueNode | NameNode]
+    args: list[ValueNode | NameNode | None]
 
     def get_value(self):
         return SimpleNamespace(keyword=self.keyword, args=self.args)
 
 
-class CallStatement(KeywordStatement):
+class CallScriptStatement(KeywordStatement):
     ...
 
 
-class StartStatement(KeywordStatement):
+class StartScriptStatement(KeywordStatement):
     ...
 
 
@@ -86,3 +87,18 @@ class ReturnStatement(Statement):
         return SimpleNamespace(expression=self.expression)
 
 
+class MacroCallStatement(Statement):
+    macro_call: MacroCallExpression
+
+    def get_value(self):
+        return SimpleNamespace(
+            macro_call=self.macro_call
+        )
+
+class MacroNameStatement(Statement):
+    macro_name: DefineName
+
+    def get_value(self):
+        return SimpleNamespace(
+            macro_name=self.macro_name
+        )

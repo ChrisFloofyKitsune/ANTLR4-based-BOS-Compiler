@@ -2,8 +2,10 @@ from abc import ABC
 from types import SimpleNamespace
 from typing import Any
 
-from bos.ast_nodes import StringLiteral, NameNode, Constant
-from bos.ast_nodes.base_nodes import PreprocNode
+from bos.ast_nodes.base_nodes import PreprocNode, ValueNode, ASTNode
+from bos.ast_nodes.enums import ExpressionOp
+from bos.ast_nodes.name_nodes import NameNode
+from bos.ast_nodes.term_nodes import Constant, StringLiteral
 
 
 class PreprocValue(PreprocNode, ABC):
@@ -39,7 +41,7 @@ class PreprocDefine(PreprocNode):
         )
 
     def __repr__(self):
-        return f'{self.node_name}({self.name}, {repr(self.get_value)})'
+        return f'{self.node_name}({self.name}, {repr(self.value)})'
 
 class PreprocFunctionDefine(PreprocNode):
     name: DefineName
@@ -54,7 +56,7 @@ class PreprocFunctionDefine(PreprocNode):
         )
 
     def __repr__(self):
-        return f'{self.node_name}({self.name}, {self.args}, {repr(self.body)})'
+        return f'{self.node_name}({self.name}, {self.parameters}, {repr(self.value)})'
 
 class PreprocUndef(PreprocNode):
     name: DefineName
@@ -94,8 +96,8 @@ class PreprocCallExpression(PreprocExpression):
         )
 
 class PreprocUnaryExpression(PreprocExpression):
-    operator: str
-    operand: PreprocValue
+    operator: ExpressionOp
+    operand: PreprocValue | Constant
 
     def get_value(self) -> Any:
         return SimpleNamespace(
@@ -104,9 +106,9 @@ class PreprocUnaryExpression(PreprocExpression):
         )
 
 class PreprocBinaryExpression(PreprocExpression):
-    left: PreprocValue
-    operator: str
-    right: PreprocValue
+    left: PreprocValue | Constant
+    operator: ExpressionOp
+    right: PreprocValue | Constant
 
     def get_value(self) -> Any:
         return SimpleNamespace(
@@ -122,3 +124,28 @@ class PreprocDefinedTerm(PreprocExpression):
         return SimpleNamespace(
             name=self.name
         )
+
+class PreprocIf(PreprocNode):
+    condition: PreprocValue | Constant
+    body: list[ASTNode]
+    alternative: list[ASTNode] | None
+
+    def get_value(self) -> Any:
+        return SimpleNamespace(
+            condition=self.condition,
+            body=self.body,
+            alternative=self.alternative
+        )
+
+class PreprocLine(PreprocNode):
+    lineno: int
+    filename: str
+
+    def get_value(self) -> Any:
+        return SimpleNamespace(
+            lineno=self.lineno,
+            filename=self.filename
+        )
+
+    def __repr__(self):
+        return f'{self.node_name}({self.lineno} {repr(self.filename)})'

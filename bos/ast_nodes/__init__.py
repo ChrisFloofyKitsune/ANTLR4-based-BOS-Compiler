@@ -32,12 +32,15 @@ from bos.ast_nodes.expression_nodes import (
     Expression,
     UnaryExpression,
     BinaryExpression,
+    MacroCallExpression,
 )
+
 from bos.ast_nodes.term_nodes import (
     Constant,
     VaryingTerm,
     GetTerm,
     GetCall,
+    VarNameTerm,
     RandTerm,
     Axis,
     StringLiteral
@@ -47,11 +50,13 @@ from bos.ast_nodes.statement_nodes import (
     Statement,
     StatementBlock,
     KeywordStatement,
-    CallStatement,
-    StartStatement,
+    CallScriptStatement,
+    StartScriptStatement,
     VarStatement,
     IfStatement,
     WhileStatement,
     AssignStatement,
-    ReturnStatement
+    ReturnStatement,
+    MacroCallStatement,
+    MacroNameStatement,
 )
