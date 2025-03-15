@@ -319,8 +319,6 @@ class ASTVisitor(BosParserVisitor):
         return None
 
     def visitFile(self, ctx: BosParser.FileContext):
-        print('visiting file with # of children:', ctx.getChildCount())
-
         return nodes.File(
             top_level_nodes=self.visitTypedChildren(ctx, BosParser.DeclarationContext),
             parser_node=ctx
@@ -361,16 +359,16 @@ class ASTVisitor(BosParserVisitor):
 def main():
     from bos_loader import BosLoader
     loader = BosLoader(
-        'example_files/Units/armaak_clean.bos',
+        'preprocessed/armcroc.preprocessed.bos',
         enable_constant_folding=False
     )
-    print(loader.load_file())
+    print(loader.load_file().model_dump_json(indent=2))
 
-    loader = BosLoader(
-        'preprocessed/armaak_clean.preprocessed.bos',
-        enable_constant_folding=False
-    )
-    print(loader.load_file())
+    # loader = BosLoader(
+    #     'preprocessed/armaak_clean.preprocessed.bos',
+    #     enable_constant_folding=False
+    # )
+    # print(loader.load_file())
 
 
 if __name__ == '__main__':

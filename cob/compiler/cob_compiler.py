@@ -1,4 +1,6 @@
+import contextlib
 import itertools
+import warnings
 from itertools import chain, repeat
 import logging
 from array import array
@@ -7,8 +9,8 @@ from functools import singledispatchmethod
 from itertools import islice
 from typing import cast
 
-import bos.ast_nodes.expression_nodes
 from bos import ast_nodes as nodes
+from bos.ast_nodes import preproc_nodes
 from cob.cob_file import CobFile
 from cob.compiler.name_registry import NameRegistry, NameType
 from cob.opcodes import CobOpCode
@@ -53,7 +55,7 @@ class CobCompiler:
         self.code: array | None = None
 
     def compile_file_ast(self, file_node: nodes.File):
-        self._handle_node(file_node)
+        self.handle_node(file_node)
 
         return CobFile(
             static_var_count=len(self.name_registry.get_name_strings(NameType.STATIC)),
@@ -66,7 +68,7 @@ class CobCompiler:
         assert self.name_registry is not None, 'name_registry has not been initialized!'
         assert len(self.name_registry) == 0, 'names have already been loaded!'
 
-        for declaration in file_node:
+        for declaration in file_node.declarations:
             if isinstance(declaration, nodes.PieceDeclaration):
                 for piece_name in declaration:
                     self.name_registry.register(piece_name, NameType.PIECE)
@@ -77,6 +79,16 @@ class CobCompiler:
                 self.name_registry.register(declaration.name, NameType.FUNCTION)
             else:
                 raise ValueError('Unable to register names for object', declaration)
+
+    def handle_node(self, node: nodes.ASTNode):
+        try:
+            self._handle_node(node)
+        except Exception as e:
+            note = repr(node)
+            if len(note) > 200:
+                note = note[:200] + '...'
+            e.add_note('Error happened in node: ' + note)
+            raise
 
     @singledispatchmethod
     def _handle_node(self, node: nodes.ASTNode):
@@ -90,10 +102,11 @@ class CobCompiler:
     @_handle_node.register(list)
     def _handle_node__list(self, node_list: list[nodes.ASTNode]):
         for node in node_list:
-            self._handle_node(node)
+            self.handle_node(node)
 
     @_handle_node.register(nodes.PieceDeclaration)
     @_handle_node.register(nodes.StaticVarDeclaration)
+    @_handle_node.register(preproc_nodes.PreprocNode)
     def _handle_node__noop(self, *_, **__):
         ...
 
@@ -105,7 +118,7 @@ class CobCompiler:
 
         self._load_global_names(file_node)
         for decl in file_node:
-            self._handle_node(decl)
+            self.handle_node(decl)
 
     @_handle_node.register
     def _handle_node__func_declaration(self, func_decl: nodes.FuncDeclaration):
@@ -116,7 +129,7 @@ class CobCompiler:
             self.name_registry.register(arg, NameType.ARG)
             self.code.append(CobOpCode.CREATE_LOCAL_VAR)
 
-        self._handle_node(func_decl.block)
+        self.handle_node(func_decl.block)
 
         # add return at end of it's missing
         if len(func_decl.block) == 0 or not isinstance(func_decl.block[-1], nodes.ReturnStatement):
@@ -125,7 +138,7 @@ class CobCompiler:
     @_handle_node.register
     def _handle_node__statement_block(self, block: nodes.StatementBlock):
         for statement in block:
-            self._handle_node(statement)
+            self.handle_node(statement)
 
     # ==== statements ====
     # keywordStatement
@@ -145,49 +158,57 @@ class CobCompiler:
 
         # Get call done purely for side effects, remove the result from the stack
         if keyword == nodes.Keyword.GET:
-            self._handle_node(keyword_statement.args[0])
+            self.handle_node(keyword_statement.args[0])
             self.code.append(CobOpCode.POP_STACK)
             return
 
         args = keyword_statement.args
         kw_op_code = CobOpCode.from_keyword(keyword_statement.keyword)
-        if keyword in (nodes.Keyword.MOVE, nodes.Keyword.TURN) and args[-1] is None:
+        if keyword in (nodes.Keyword.MOVE, nodes.Keyword.TURN) and (
+                args[-1] is None or len(args) == CobOpCode.MOVE_NOW.num_params):
             match keyword:
                 case nodes.Keyword.MOVE:
                     kw_op_code = CobOpCode.MOVE_NOW
                 case nodes.Keyword.TURN:
                     kw_op_code = CobOpCode.TURN_NOW
-            args = args[:-1]
 
         # COB, why are you like this?
         # Need to swap the arg order for these keywords because
-        # "The COB emulator in Recoil was created via reverse engineering or something"
+        # "The COB emulator in Recoil was created via reverse engineering/as a hacky modding tool or something"
         # reasons
         if keyword in (nodes.Keyword.SET, nodes.Keyword.ATTACH_UNIT):
             # yes, this will get reversed again in a moment
             args = args[::-1]
 
-        # print(keyword_statement.keyword, kw_op_code.name)
-        post_opcode_vals = []
+        immediate_args: list[nodes.NameNode | nodes.Axis | None] = [
+            a for a in args if isinstance(a, (nodes.NameNode, nodes.Axis))
+        ]
+
+        stack_args = [a for a in args if a not in immediate_args]
+        while len(stack_args) < kw_op_code.num_stack_params:
+            stack_args.append(None)
+
+        immediate_args = list(islice(chain(immediate_args, repeat(None)), kw_op_code.num_immediate_params))
+        stack_args = stack_args[:kw_op_code.num_stack_params]
+
+        immediate_vals = []
+        for arg in immediate_args:
+            if isinstance(arg, nodes.NameNode):
+                immediate_vals.append(self.name_registry.lookup(arg)[0])
+            elif isinstance(arg, nodes.Axis):
+                immediate_vals.append(arg.axis.value)
+            else:
+                immediate_vals.insert(0, 0)
 
         # Iterate backwards because we're building a Stack (FILO), not a Queue (FIFO)
-        for arg in args[::-1]:
-            match arg:
-                case _ if isinstance(arg, nodes.NameNode):
-                    post_opcode_vals.insert(0, self.name_registry.lookup(cast(nodes.NameNode, arg))[0])
-                case _ if isinstance(arg, nodes.Axis):
-                    post_opcode_vals.insert(0, cast(nodes.Axis, arg).axis.value)
-                case _ if arg is None:
-                    self._handle_node(nodes.Constant(0))
-                case _:
-                    self._handle_node(arg)
-
-        # legacy/dummy arg :(
-        if keyword == nodes.Keyword.ATTACH_UNIT:
-            self.code.extend([CobOpCode.PUSH_CONSTANT, 0])
+        for arg in stack_args[::-1]:
+            if arg is not None:
+                self.handle_node(arg)
+            else:
+                self.handle_node(nodes.Constant(0))
 
         self.code.append(kw_op_code)
-        self.code.extend(post_opcode_vals)
+        self.code.extend(immediate_vals)
 
     @_handle_node.register
     def _handle_node__var_statement(self, var_statement: nodes.VarStatement):
@@ -199,7 +220,7 @@ class CobCompiler:
     @_handle_node.register(nodes.StartScriptStatement)
     def _handle_node__function_call(self, statement: nodes.CallScriptStatement | nodes.StartScriptStatement):
         for arg in statement.args[1:]:
-            self._handle_node(arg)
+            self.handle_node(arg)
 
         self.code.append(CobOpCode.from_keyword(statement.keyword))
         if not isinstance(func_name := statement.args[0], nodes.NameNode):
@@ -212,13 +233,13 @@ class CobCompiler:
 
     @_handle_node.register
     def _handle_node__if_statement(self, if_statement: nodes.IfStatement):
-        self._handle_node(if_statement.condition)
+        self.handle_node(if_statement.condition)
         self.code.append(CobOpCode.JUMP_NOT_EQUAL)
 
         jump_dest_if_false_idx = len(self.code)
         self.code.append(CobOpCode.BAD_OP_PLACEHOLDER)  # placeholder
 
-        self._handle_node(if_statement.then_block)
+        self.handle_node(if_statement.then_block)
 
         jump_dest_skip_else_block_idx = 0
         if if_statement.else_block is not None:
@@ -229,19 +250,19 @@ class CobCompiler:
         self.code[jump_dest_if_false_idx] = len(self.code)
 
         if if_statement.else_block is not None:
-            self._handle_node(if_statement.else_block)
+            self.handle_node(if_statement.else_block)
             self.code[jump_dest_skip_else_block_idx] = len(self.code)
 
     @_handle_node.register
     def _handle_node__while_statement(self, while_statement: nodes.WhileStatement):
         start_jump_pos = len(self.code)
-        self._handle_node(while_statement.condition)
+        self.handle_node(while_statement.condition)
 
         self.code.append(CobOpCode.JUMP_NOT_EQUAL)
         exit_while_jump_idx = len(self.code)
         self.code.append(CobOpCode.BAD_OP_PLACEHOLDER)
 
-        self._handle_node(while_statement.block)
+        self.handle_node(while_statement.block)
         self.code.append(CobOpCode.JUMP)
         self.code.append(start_jump_pos)
 
@@ -254,7 +275,7 @@ class CobCompiler:
 
     @_handle_node.register
     def _handle_node__assign_statement(self, assign_statement: nodes.AssignStatement):
-        self._handle_node(assign_statement.expression)
+        self.handle_node(assign_statement.expression)
         idx, name_type = self.name_registry.lookup(assign_statement.variable)
 
         match name_type:
@@ -273,7 +294,7 @@ class CobCompiler:
     @_handle_node.register
     def _handle_node__return_statement(self, return_statement: nodes.ReturnStatement):
         if return_statement.expression is not None:
-            self._handle_node(return_statement.expression)
+            self.handle_node(return_statement.expression)
         else:
             self.code.extend([CobOpCode.PUSH_CONSTANT, 0])
 
@@ -282,13 +303,13 @@ class CobCompiler:
     # expressions
     @_handle_node.register
     def _handle_node__unary_expression(self, expr: nodes.UnaryExpression):
-        self._handle_node(expr.operand)
+        self.handle_node(expr.operand)
         self.code.append(CobOpCode.from_unary_expression_op(expr.op))
 
     @_handle_node.register
     def _handle_node__binary_expression(self, expr: nodes.BinaryExpression):
-        self._handle_node(expr.left)
-        self._handle_node(expr.right)
+        self.handle_node(expr.left)
+        self.handle_node(expr.right)
         self.code.append(CobOpCode.from_binary_expression_op(expr.op))
 
     # terms
@@ -310,21 +331,21 @@ class CobCompiler:
 
     @_handle_node.register
     def _handle_node__rand_term(self, rand: nodes.RandTerm):
-        self._handle_node(rand.min)
-        self._handle_node(rand.max)
+        self.handle_node(rand.min)
+        self.handle_node(rand.max)
         self.code.append(CobOpCode.RAND)
 
     @_handle_node.register
     def _handle_node__get_term(self, get_term: nodes.GetTerm):
-        self._handle_node(get_term.get_call)
+        self.handle_node(get_term.get_call)
 
     @_handle_node.register
     def _handle_node__get_call(self, get_call: nodes.GetCall):
-        self._handle_node(get_call.value_idx)
+        self.handle_node(get_call.value_idx)
 
         if any(arg is not None for arg in get_call.args):
             for arg in islice(chain(get_call.args, repeat(None)), 4):
-                self._handle_node(arg) if arg is not None else nodes.Constant(0)
+                self.handle_node(arg) if arg is not None else nodes.Constant(0)
             self.code.append(CobOpCode.GET)
         else:
             self.code.append(CobOpCode.GET_UNIT_VALUE)

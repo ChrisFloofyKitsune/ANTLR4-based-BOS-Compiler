@@ -97,7 +97,8 @@ class BosPreprocessor(pcpp.Preprocessor):
 
         if include_paths:
             for include_path in include_paths:
-                self.add_path(include_path)
+                if include_path not in self.path:
+                    self.add_path(include_path)
 
         self.parse(file_text, source_path)
 

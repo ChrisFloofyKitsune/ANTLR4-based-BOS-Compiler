@@ -57,10 +57,10 @@ class TreeSitterBosVisitor:
         'drop-unit': ast_nodes.Keyword.DROP_UNIT,
 
         # effectively removed from the language, these do nothing
-        # 'cache': ast_nodes.Keyword.CACHE,
-        # 'dont-cache': ast_nodes.Keyword.DONT_CACHE,
-        # 'dont-shadow': ast_nodes.Keyword.DONT_SHADE,
-        # 'dont-shade': ast_nodes.Keyword.DONT_SHADE,
+        'cache': ast_nodes.Keyword.CACHE,
+        'dont-cache': ast_nodes.Keyword.DONT_CACHE,
+        'dont-shadow': ast_nodes.Keyword.DONT_SHADE,
+        'dont-shade': ast_nodes.Keyword.DONT_SHADE,
     }
 
     operator_map = {
@@ -344,7 +344,7 @@ class TreeSitterBosVisitor:
         return ast_nodes.AssignStatement(
             variable=var_name,
             expression=ast_nodes.BinaryExpression(
-                left=var_name,
+                left=ast_nodes.VarNameTerm(var_name=var_name),
                 op=ast_nodes.ExpressionOp.ADD,
                 right=ast_nodes.Constant(1)
             ),
@@ -358,7 +358,7 @@ class TreeSitterBosVisitor:
         return ast_nodes.AssignStatement(
             variable=var_name,
             expression=ast_nodes.BinaryExpression(
-                left=var_name,
+                left=ast_nodes.VarNameTerm(var_name=var_name),
                 op=ast_nodes.ExpressionOp.MINUS,
                 right=ast_nodes.Constant(1)
             ),

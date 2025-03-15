@@ -34,7 +34,10 @@ class KeywordStatement(Statement):
     args: list[ValueNode | NameNode | None]
 
     def get_value(self):
-        return SimpleNamespace(keyword=self.keyword, args=self.args)
+        return SimpleNamespace(
+            keyword=self.keyword,
+            args=[a for a in self.args if a]
+        )
 
 
 class CallScriptStatement(KeywordStatement):

@@ -22,7 +22,7 @@ class CodeLocation:
 
     @classmethod
     def from_parser_node(cls, parser_node: ParserRuleContext | None, starting_file: str = None) -> Self | None:
-        if parser_node is None:
+        if parser_node is None or any(not hasattr(parser_node, attr) for attr in ('start', 'stop', 'parser')):
             return None
 
         start: CommonToken = parser_node.start

@@ -86,27 +86,14 @@ class BosLoader:
         if self.parser_node_tree is not None and not force_reload:
             return
 
-        self.bos_lexer = BosLexer(InputStream(self.preprocessed_file_contents))
-        self.token_stream = CommonTokenStream(self.bos_lexer)
-
-        # first try with faster, but weaker, parse strategy
-        self.bos_parser = BosParser(self.token_stream)
-        self.bos_parser._interp.predictionMode = PredictionMode.SLL
-        self.bos_parser.removeErrorListeners()
-        self.bos_parser._errHandler = BailErrorStrategy()
-
         start_time = time.perf_counter()
 
-        try:
-            self.parser_node_tree = self.bos_parser.file_()
-        except BaseException:
-            self.log.debug(
-                'File could not be handled by SLL parser, trying again with default LL parser'
-            )
-            self.bos_parser = BosParser(self.token_stream)
-            self.bos_parser.addErrorListener(self.ErrorListener(self))
+        self.bos_lexer = BosLexer(InputStream(self.preprocessed_file_contents))
+        self.token_stream = CommonTokenStream(self.bos_lexer)
+        self.bos_parser = BosParser(self.token_stream)
+        self.bos_parser.addErrorListener(self.ErrorListener(self))
 
-            self.parser_node_tree = self.bos_parser.file_()
+        self.parser_node_tree = self.bos_parser.file_()
 
         end_time = time.perf_counter()
         self.log.debug('Parsing took %.2f seconds (%.2f mins)', end_time - start_time, (end_time - start_time) / 60)

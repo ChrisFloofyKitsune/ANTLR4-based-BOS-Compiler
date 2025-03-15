@@ -7,7 +7,7 @@ import sys
 import time
 import traceback
 from itertools import pairwise
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 import pydantic_core
 import tree_sitter
@@ -16,6 +16,8 @@ import tree_sitter_bos
 from bos.bos_loader import BosLoader
 from bos.bos_preprocessor import BosPreprocessor
 from bos_tree_sitter.ts_ast_visitor import TreeSitterBosVisitor
+from cob.compiler.cob_compiler import CobCompiler
+from code_error import CodeError
 
 
 def main():
@@ -178,60 +180,113 @@ def main3():
     # with open('../bos/example_files/debug.h', 'rb') as f:
     #     data = f.read()
 
-    for file in walk_files('../bos/preprocessed', ['.bos', '.h']):
+    bos_lang = tree_sitter.Language(tree_sitter_bos.language())
+    parser = tree_sitter.Parser(bos_lang)
+    top_path = Path('../bos/example_files')
+
+    outer_start_time = time.perf_counter()
+
+    for file in walk_files(top_path, ['.bos']):
         if 'array' in str(file):
             continue
 
         print('Processing', file)
-        data = open(file, 'rb').read()
+        data = open(file, 'rt').read()
 
-        bos_lang = tree_sitter.Language(tree_sitter_bos.language())
-        parser = tree_sitter.Parser(bos_lang)
-        tree = parser.parse(data)
+        start_time = time.perf_counter()
+
+        bos_preprocessor = BosPreprocessor()
+        bos_preprocessor.add_path(top_path)
+        preproc_text, _, _ = bos_preprocessor.process_file(data, file, [top_path])
+
+        preproc_time = time.perf_counter()
+
+        tree = parser.parse(preproc_text.encode('utf-8'))
+
+        parse_time = time.perf_counter()
 
         visitor = TreeSitterBosVisitor()
         ast_node_tree = visitor.visit(tree)
-        new_ast_dict = ast_node_tree.model_dump()
-        # remove any fancy new PreprocNode stuff
 
-        def purge_preproc_nodes(ast_dict):
-            new_values = {}
-            for key, value in ast_dict.items():
-                if 'Preproc' in key:
-                    continue
+        ast_time = time.perf_counter()
 
-                if isinstance(value, dict):
-                    value = purge_preproc_nodes(value)
-                    if value is not None and len(value) > 0:
-                        new_values[key] = purge_preproc_nodes(value)
-                elif isinstance(value, list):
-                    list_values = []
-                    for item in value:
-                        if isinstance(item, dict):
-                            list_values.append(purge_preproc_nodes(item))
-                        else:
-                            list_values.append(item)
-                    new_values[key] = [v for v in list_values if v]
-                else:
-                    new_values[key] = value
-            return new_values
+        try:
+            compiler = CobCompiler()
+            compiler.compile_file_ast(ast_node_tree)
+        except CodeError:
+            print('file failed to compile :(')
+        compile_time = time.perf_counter()
+        print(
+            f'Preproc time: {preproc_time - start_time:.4f}',
+            f'Parse time:   {parse_time - preproc_time:.4f}',
+            f'AST time:     {ast_time - parse_time:.4f}',
+            f'Compile time: {compile_time - ast_time:.4f}',
+            f'Total time:   {compile_time - start_time:.4f}'
+        )
 
+    print('Total time:', time.perf_counter() - outer_start_time)
+
+def main3_old__compare_new_and_old_ast(new_ast_dict, file, ast_node_tree):
+        # # remove any fancy new PreprocNode stuff
         cleaned_ast = purge_preproc_nodes(new_ast_dict)
 
         bos_loader = BosLoader(file)
         prev_version_ast = bos_loader.load_file()
+        prev_version_dict = prev_version_ast.model_dump()
 
-        if cleaned_ast != prev_version_ast.model_dump():
+        if cleaned_ast == prev_version_dict:
+            print('ASTs "match"')
+
+            try:
+                compiler = CobCompiler()
+                cob_file_new = compiler.compile_file_ast(ast_node_tree)
+                cob_file_old = compiler.compile_file_ast(prev_version_ast)
+            except CodeError:
+                print('file failed to compile :(')
+                return
+
+            new_bytes = cob_file_new.to_bytes()
+            old_bytes = cob_file_old.to_bytes()
+
+            Path('./compiled').mkdir(exist_ok=True)
+            cob_file_new.save_to_file(Path('./compiled').joinpath(Path(file.name).with_suffix(".new_parser.cob")))
+            cob_file_old.save_to_file(Path('./compiled').joinpath(Path(file.name).with_suffix(".old_parser.cob")))
+
+            if new_bytes != old_bytes:
+                print("Byte data mismatch found between compiled files:")
+                if len(old_bytes) != len(new_bytes):
+                    print(f"Length mismatch: old {len(old_bytes)} != new {len(new_bytes)}")
+                for i, (original_byte, serialized_byte) in enumerate(zip(old_bytes, new_bytes)):
+                    if original_byte != serialized_byte:
+                        print(
+                            f"Byte {hex(i):>6}: old {original_byte} ({hex(original_byte)}) != new {serialized_byte} ({hex(serialized_byte)})")
+                return
+            else:
+                print("Compiled byte data matches.")
+        else:
             print('ASTs do not match')
 
-            for diff in difflib.unified_diff(
-                a=prev_version_ast.model_dump_json(indent=2).splitlines(),
-                b=json.dumps(cleaned_ast, indent=2).splitlines(),
-            ):
-                print(diff)
-            return
+def purge_preproc_nodes(ast_dict):
+    new_values = {}
+    for key, value in ast_dict.items():
+        if 'Preproc' in key:
+            continue
 
-        # print(ast_node_tree.model_dump_json(indent=2))
+        if isinstance(value, dict):
+            value = purge_preproc_nodes(value)
+            if value is not None and len(value) > 0:
+                new_values[key] = purge_preproc_nodes(value)
+        elif isinstance(value, list):
+            list_values = []
+            for item in value:
+                if isinstance(item, dict):
+                    list_values.append(purge_preproc_nodes(item))
+                else:
+                    list_values.append(item)
+            new_values[key] = [v for v in list_values if v]
+        else:
+            new_values[key] = value
+    return new_values
 
 if __name__ == "__main__":
     # main()

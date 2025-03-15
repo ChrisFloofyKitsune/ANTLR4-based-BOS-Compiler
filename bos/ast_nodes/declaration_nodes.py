@@ -11,6 +11,10 @@ class File(ASTNode):
     top_level_nodes: list[TopLevelNode]
 
     @property
+    def declarations(self):
+        return [n for n in self.top_level_nodes if isinstance(n, Declaration)]
+
+    @property
     def piece_declarations(self):
         return [d for d in self.top_level_nodes if isinstance(d, PieceDeclaration)]
 
