@@ -1,7 +1,7 @@
 import enum
 from enum import IntEnum
 
-from bos.ast_nodes import Keyword, ExpressionOp
+from bos.ast_nodes import Keyword, ExpressionOperator
 
 
 class CobOpCode(IntEnum):
@@ -153,43 +153,43 @@ class CobOpCode(IntEnum):
         return None
 
     @classmethod
-    def from_binary_expression_op(cls, op: ExpressionOp):
+    def from_binary_expression_op(cls, op: ExpressionOperator):
         match op:
-            case ExpressionOp.MULT:
+            case ExpressionOperator.MULT:
                 return CobOpCode.MUL
-            case ExpressionOp.DIV:
+            case ExpressionOperator.DIV:
                 return CobOpCode.DIV
-            case ExpressionOp.MOD:
+            case ExpressionOperator.MOD:
                 return CobOpCode.MOD
-            case ExpressionOp.ADD:
+            case ExpressionOperator.ADD:
                 return CobOpCode.ADD
-            case ExpressionOp.MINUS:
+            case ExpressionOperator.MINUS:
                 return CobOpCode.SUB
-            case ExpressionOp.COMP_LESS:
+            case ExpressionOperator.COMP_LESS:
                 return CobOpCode.SET_LESS
-            case ExpressionOp.COMP_LESS_EQUAL:
+            case ExpressionOperator.COMP_LESS_EQUAL:
                 return CobOpCode.SET_LESS_OR_EQUAL
-            case ExpressionOp.COMP_GREATER:
+            case ExpressionOperator.COMP_GREATER:
                 return CobOpCode.SET_GREATER
-            case ExpressionOp.COMP_GREATER_EQUAL:
+            case ExpressionOperator.COMP_GREATER_EQUAL:
                 return CobOpCode.SET_GREATER_OR_EQUAL
-            case ExpressionOp.COMP_EQUAL:
+            case ExpressionOperator.COMP_EQUAL:
                 return CobOpCode.SET_EQUAL
-            case ExpressionOp.COMP_NOT_EQUAL:
+            case ExpressionOperator.COMP_NOT_EQUAL:
                 return CobOpCode.SET_NOT_EQUAL
-            case ExpressionOp.BITWISE_AND:
+            case ExpressionOperator.BITWISE_AND:
                 return CobOpCode.BITWISE_AND
-            case ExpressionOp.BITWISE_OR:
+            case ExpressionOperator.BITWISE_OR:
                 return CobOpCode.BITWISE_OR
-            case ExpressionOp.BITWISE_XOR:
+            case ExpressionOperator.BITWISE_XOR:
                 return CobOpCode.BITWISE_XOR
-            case ExpressionOp.LOGICAL_AND:
+            case ExpressionOperator.LOGICAL_AND:
                 return CobOpCode.LOGICAL_AND
-            case ExpressionOp.LOGICAL_OR:
+            case ExpressionOperator.LOGICAL_OR:
                 return CobOpCode.LOGICAL_OR
-            case ExpressionOp.LOGICAL_XOR:
+            case ExpressionOperator.LOGICAL_XOR:
                 return CobOpCode.LOGICAL_XOR
-            case ExpressionOp.LOGICAL_NOT:
+            case ExpressionOperator.LOGICAL_NOT:
                 return CobOpCode.LOGICAL_NOT
 
         raise ValueError(f'Invalid / unsupported binary expression op: {op}')
@@ -197,7 +197,7 @@ class CobOpCode(IntEnum):
     @classmethod
     def from_unary_expression_op(cls, op):
         match op:
-            case ExpressionOp.LOGICAL_NOT:
+            case ExpressionOperator.LOGICAL_NOT:
                 return CobOpCode.LOGICAL_NOT
 
         raise ValueError(f'Invalid / unsupported unary expression op: {op}')

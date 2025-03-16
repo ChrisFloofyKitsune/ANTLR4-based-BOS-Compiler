@@ -7,7 +7,7 @@ from bos.ast_nodes.base_nodes import (
 )
 
 from bos.ast_nodes.enums import (
-    ExpressionOp,
+    ExpressionOperator,
     Keyword,
     AxisEnum
 )

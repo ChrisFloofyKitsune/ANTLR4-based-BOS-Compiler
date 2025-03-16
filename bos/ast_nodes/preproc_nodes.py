@@ -3,7 +3,7 @@ from types import SimpleNamespace
 from typing import Any
 
 from bos.ast_nodes.base_nodes import PreprocNode, ValueNode, ASTNode
-from bos.ast_nodes.enums import ExpressionOp
+from bos.ast_nodes.enums import ExpressionOperator
 from bos.ast_nodes.name_nodes import NameNode
 from bos.ast_nodes.term_nodes import Constant, StringLiteral
 
@@ -96,7 +96,7 @@ class PreprocCallExpression(PreprocExpression):
         )
 
 class PreprocUnaryExpression(PreprocExpression):
-    operator: ExpressionOp
+    operator: ExpressionOperator
     operand: PreprocValue | Constant
 
     def get_value(self) -> Any:
@@ -107,7 +107,7 @@ class PreprocUnaryExpression(PreprocExpression):
 
 class PreprocBinaryExpression(PreprocExpression):
     left: PreprocValue | Constant
-    operator: ExpressionOp
+    operator: ExpressionOperator
     right: PreprocValue | Constant
 
     def get_value(self) -> Any:

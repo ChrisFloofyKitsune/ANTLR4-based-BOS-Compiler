@@ -105,7 +105,7 @@ class BosLoader:
         if self.ast_node_tree is not None and not force_reload:
             return
 
-        ast_visitor = ASTVisitor(enable_constant_folding=self.enable_constant_folding)
+        ast_visitor = ASTVisitor()
         self.ast_node_tree = ast_visitor.visitFile(self.parser_node_tree)
         self.log.debug('AST conversion complete')
 

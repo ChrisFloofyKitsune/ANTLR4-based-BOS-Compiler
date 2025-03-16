@@ -11,33 +11,6 @@ from bos.gen.BosParserVisitor import BosParserVisitor
 
 class ASTVisitor(BosParserVisitor):
 
-    UNARY_OP_FUNC_MAPPING = {
-        nodes.ExpressionOp.LOGICAL_NOT: lambda a: int(not bool(a))
-    }
-
-    BINARY_OP_FUNC_MAPPING = {
-        nodes.ExpressionOp.MULT: operator.mul,
-        nodes.ExpressionOp.DIV: operator.truediv,
-        nodes.ExpressionOp.MOD: operator.mod,
-        nodes.ExpressionOp.ADD: operator.add,
-        nodes.ExpressionOp.MINUS: operator.sub,
-
-        nodes.ExpressionOp.COMP_LESS: lambda a, b: int(a < b),
-        nodes.ExpressionOp.COMP_LESS_EQUAL: lambda a, b: int(a <= b),
-        nodes.ExpressionOp.COMP_GREATER: lambda a, b: int(a > b),
-        nodes.ExpressionOp.COMP_GREATER_EQUAL: lambda a, b: int(a >= b),
-        nodes.ExpressionOp.COMP_EQUAL: lambda a, b: int(a == b),
-        nodes.ExpressionOp.COMP_NOT_EQUAL: lambda a, b: int(a != b),
-
-        nodes.ExpressionOp.BITWISE_AND: lambda a, b: int(a) & int(b),
-        nodes.ExpressionOp.BITWISE_OR: lambda a, b: int(a) | int(b),
-        nodes.ExpressionOp.BITWISE_XOR: lambda a, b: int(a) ^ int(b),
-
-        nodes.ExpressionOp.LOGICAL_AND: lambda a, b: int(bool(a) and bool(b)),
-        nodes.ExpressionOp.LOGICAL_OR: lambda a, b: int(bool(a) or bool(b)),
-        nodes.ExpressionOp.LOGICAL_XOR: lambda a, b: int(bool(a) ^ bool(b))
-    }
-
     KEYWORD_MAPPING = {
         BosParser.CALL_SCRIPT: nodes.Keyword.CALL_SCRIPT,
         BosParser.START_SCRIPT: nodes.Keyword.START_SCRIPT,
@@ -76,29 +49,25 @@ class ASTVisitor(BosParserVisitor):
     }
 
     OPERATOR_MAPPING = {
-        BosParser.OP_ADD: nodes.ExpressionOp.ADD,
-        BosParser.OP_MINUS: nodes.ExpressionOp.MINUS,
-        BosParser.OP_MULT: nodes.ExpressionOp.MULT,
-        BosParser.OP_DIV: nodes.ExpressionOp.DIV,
-        BosParser.OP_MOD: nodes.ExpressionOp.MOD,
-        BosParser.LOGICAL_XOR: nodes.ExpressionOp.LOGICAL_XOR,
-        BosParser.LOGICAL_OR: nodes.ExpressionOp.LOGICAL_OR,
-        BosParser.LOGICAL_AND: nodes.ExpressionOp.LOGICAL_AND,
-        BosParser.LOGICAL_NOT: nodes.ExpressionOp.LOGICAL_NOT,
-        BosParser.BITWISE_XOR: nodes.ExpressionOp.BITWISE_XOR,
-        BosParser.BITWISE_OR: nodes.ExpressionOp.BITWISE_OR,
-        BosParser.BITWISE_AND: nodes.ExpressionOp.BITWISE_AND,
-        BosParser.COMP_EQUAL: nodes.ExpressionOp.COMP_EQUAL,
-        BosParser.COMP_NOT_EQUAL: nodes.ExpressionOp.COMP_NOT_EQUAL,
-        BosParser.COMP_GREATER: nodes.ExpressionOp.COMP_GREATER,
-        BosParser.COMP_GREATER_EQUAL: nodes.ExpressionOp.COMP_GREATER_EQUAL,
-        BosParser.COMP_LESS_EQUAL: nodes.ExpressionOp.COMP_LESS_EQUAL,
-        BosParser.COMP_LESS: nodes.ExpressionOp.COMP_LESS,
+        BosParser.OP_ADD: nodes.ExpressionOperator.ADD,
+        BosParser.OP_MINUS: nodes.ExpressionOperator.MINUS,
+        BosParser.OP_MULT: nodes.ExpressionOperator.MULT,
+        BosParser.OP_DIV: nodes.ExpressionOperator.DIV,
+        BosParser.OP_MOD: nodes.ExpressionOperator.MOD,
+        BosParser.LOGICAL_XOR: nodes.ExpressionOperator.LOGICAL_XOR,
+        BosParser.LOGICAL_OR: nodes.ExpressionOperator.LOGICAL_OR,
+        BosParser.LOGICAL_AND: nodes.ExpressionOperator.LOGICAL_AND,
+        BosParser.LOGICAL_NOT: nodes.ExpressionOperator.LOGICAL_NOT,
+        BosParser.BITWISE_XOR: nodes.ExpressionOperator.BITWISE_XOR,
+        BosParser.BITWISE_OR: nodes.ExpressionOperator.BITWISE_OR,
+        BosParser.BITWISE_AND: nodes.ExpressionOperator.BITWISE_AND,
+        BosParser.COMP_EQUAL: nodes.ExpressionOperator.COMP_EQUAL,
+        BosParser.COMP_NOT_EQUAL: nodes.ExpressionOperator.COMP_NOT_EQUAL,
+        BosParser.COMP_GREATER: nodes.ExpressionOperator.COMP_GREATER,
+        BosParser.COMP_GREATER_EQUAL: nodes.ExpressionOperator.COMP_GREATER_EQUAL,
+        BosParser.COMP_LESS_EQUAL: nodes.ExpressionOperator.COMP_LESS_EQUAL,
+        BosParser.COMP_LESS: nodes.ExpressionOperator.COMP_LESS,
     }
-
-    def __init__(self, *args, enable_constant_folding=False, **kwargs):
-        self.enable_constant_folding = enable_constant_folding
-        super().__init__(*args, **kwargs)
 
     def aggregateResult(self, aggregate, next_result):
         if next_result is None:
@@ -165,12 +134,6 @@ class ASTVisitor(BosParserVisitor):
         op = self.OPERATOR_MAPPING.get(ctx.op.type, None)
         operand = self.visit(ctx.operand)
 
-        if self.enable_constant_folding and isinstance(operand, nodes.Constant):
-            return nodes.Constant(
-                value=self.UNARY_OP_FUNC_MAPPING[op](operand.number_value()),
-                parser_node=ctx
-            )
-
         return nodes.UnaryExpression(
             op=op,
             operand=operand,
@@ -181,19 +144,6 @@ class ASTVisitor(BosParserVisitor):
         op = self.OPERATOR_MAPPING.get(ctx.op.type, None)
         operand1 = self.visit(ctx.operand1)
         operand2 = self.visit(ctx.operand2)
-
-        if (
-            self.enable_constant_folding
-            and isinstance(operand1, nodes.Constant)
-            and isinstance(operand2, nodes.Constant)
-        ):
-            return nodes.Constant(
-                value=self.BINARY_OP_FUNC_MAPPING[op](
-                    operand1.number_value(),
-                    operand2.number_value()
-                ),
-                parser_node=ctx
-            )
 
         return nodes.BinaryExpression(
             left=operand1,
@@ -284,7 +234,7 @@ class ASTVisitor(BosParserVisitor):
                 variable=var_name,
                 expression=nodes.BinaryExpression(
                     left=nodes.VarNameTerm(var_name=var_name),
-                    op=nodes.ExpressionOp.ADD,
+                    op=nodes.ExpressionOperator.ADD,
                     right=nodes.Constant(value=1)
                 ),
                 parser_node=inc_ctx
@@ -297,7 +247,7 @@ class ASTVisitor(BosParserVisitor):
                 variable=self.visit(var_name),
                 expression=nodes.BinaryExpression(
                     left=nodes.VarNameTerm(var_name=var_name),
-                    op=nodes.ExpressionOp.MINUS,
+                    op=nodes.ExpressionOperator.MINUS,
                     right=nodes.Constant(value=1)
                 ),
                 parser_node=dec_ctx

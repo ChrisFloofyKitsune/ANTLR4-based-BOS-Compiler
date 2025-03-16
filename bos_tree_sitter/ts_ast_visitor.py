@@ -64,57 +64,79 @@ class TreeSitterBosVisitor:
     }
 
     operator_map = {
-        '+': ast_nodes.ExpressionOp.ADD,
-        '-': ast_nodes.ExpressionOp.MINUS,
-        '*': ast_nodes.ExpressionOp.MULT,
-        '/': ast_nodes.ExpressionOp.DIV,
-        '%': ast_nodes.ExpressionOp.MOD,
-        '^^': ast_nodes.ExpressionOp.LOGICAL_XOR,
-        '||': ast_nodes.ExpressionOp.LOGICAL_OR,
-        '&&': ast_nodes.ExpressionOp.LOGICAL_AND,
-        '!': ast_nodes.ExpressionOp.LOGICAL_NOT,
-        '^': ast_nodes.ExpressionOp.BITWISE_XOR,
-        '|': ast_nodes.ExpressionOp.BITWISE_OR,
-        '&': ast_nodes.ExpressionOp.BITWISE_AND,
-        '==': ast_nodes.ExpressionOp.COMP_EQUAL,
-        '!=': ast_nodes.ExpressionOp.COMP_NOT_EQUAL,
-        '>': ast_nodes.ExpressionOp.COMP_GREATER,
-        '>=': ast_nodes.ExpressionOp.COMP_GREATER_EQUAL,
-        '<=': ast_nodes.ExpressionOp.COMP_LESS_EQUAL,
-        '<': ast_nodes.ExpressionOp.COMP_LESS,
+        '+': ast_nodes.ExpressionOperator.ADD,
+        '-': ast_nodes.ExpressionOperator.MINUS,
+        '*': ast_nodes.ExpressionOperator.MULT,
+        '/': ast_nodes.ExpressionOperator.DIV,
+        '%': ast_nodes.ExpressionOperator.MOD,
+        '^^': ast_nodes.ExpressionOperator.LOGICAL_XOR,
+        '||': ast_nodes.ExpressionOperator.LOGICAL_OR,
+        '&&': ast_nodes.ExpressionOperator.LOGICAL_AND,
+        '!': ast_nodes.ExpressionOperator.LOGICAL_NOT,
+        '^': ast_nodes.ExpressionOperator.BITWISE_XOR,
+        '|': ast_nodes.ExpressionOperator.BITWISE_OR,
+        '&': ast_nodes.ExpressionOperator.BITWISE_AND,
+        '==': ast_nodes.ExpressionOperator.COMP_EQUAL,
+        '!=': ast_nodes.ExpressionOperator.COMP_NOT_EQUAL,
+        '>': ast_nodes.ExpressionOperator.COMP_GREATER,
+        '>=': ast_nodes.ExpressionOperator.COMP_GREATER_EQUAL,
+        '<': ast_nodes.ExpressionOperator.COMP_LESS,
+        '<=': ast_nodes.ExpressionOperator.COMP_LESS_EQUAL,
     }
 
+    def visit(self, obj):
+        try:
+            return self._visit(obj)
+        except Exception as e:
+            note = repr(obj)
+            if len(note) > 100:
+                note = note[:100] + '...'
+            if note not in getattr(e, "__notes__", []):
+                e.add_note(repr(obj))
+            raise
+
     @singledispatchmethod
-    def visit(self, obj: Any) -> ast_nodes.ASTNode | list[ast_nodes.ASTNode]:
+    def _visit(self, obj: Any) -> ast_nodes.ASTNode | list[ast_nodes.ASTNode]:
         raise NotImplementedError(f'visit not implemented for object {repr(obj)}')
 
-    @visit.register
+    @_visit.register
     def _visit_none_type(self, _: NoneType):
         return None
 
-    @visit.register
+    @_visit.register
     def _visit_tree(self, tree: tree_sitter.Tree):
         return self.visit_node_type(tree.root_node.type, tree.root_node)
 
-    @visit.register
+    @_visit.register
     def _visit_list(self, items: list):
         results = (self.visit(item) for item in items if item)
         return [r for r in results if r]
 
-    @visit.register
+    @_visit.register
     def _visit_node(self, node: tree_sitter.Node):
         target_type = node.type
         while (
-                target_type not in self.visit_node_type.dispatch_table
+                target_type not in self._visit_node_type.dispatch_table
                 and target_type in self.sub_to_supertype_map
-                and self.sub_to_supertype_map[target_type] in self.visit_node_type.dispatch_table
+                and self.sub_to_supertype_map[target_type] in self._visit_node_type.dispatch_table
         ):
             target_type = self.sub_to_supertype_map[target_type]
 
         return self.visit_node_type(target_type, node)
 
-    @ValueDispatch
     def visit_node_type(self, node_type: str, node: tree_sitter.Node):
+        try:
+            return self._visit_node_type(node_type, node)
+        except Exception as e:
+            note = repr(node)
+            if len(note) > 100:
+                note = note[:100] + '...'
+            if note not in getattr(e, "__notes__", []):
+                e.add_note(repr(node))
+            raise
+
+    @ValueDispatch
+    def _visit_node_type(self, node_type: str, node: tree_sitter.Node):
         if node.is_extra:
             return None
 
@@ -142,30 +164,30 @@ class TreeSitterBosVisitor:
             result = reduce(operator.__ior__, result, {})
         return ast_nodes.UndefNode(contents=result, name=node_type, parser_node=node)
 
-    @visit_node_type.register('constant')
+    @_visit_node_type.register('constant')
     def _visit_linear_constant(self, node: tree_sitter.Node):
         return ast_nodes.Constant(node.text.decode('utf-8'), parser_node=node)
 
-    @visit_node_type.register('axis')
+    @_visit_node_type.register('axis')
     def _visit_axis(self, node: tree_sitter.Node):
         return ast_nodes.Axis(axis=ast_nodes.AxisEnum.from_str(node.text.decode('utf-8')), parser_node=node)
 
-    @visit_node_type.register('parenthesized_expression')
+    @_visit_node_type.register('parenthesized_expression')
     def _visit_parenthesized_expression(self, node: tree_sitter.Node):
         return self.visit(node.named_child(0))
 
-    @visit_node_type.register('compound_statement')
+    @_visit_node_type.register('compound_statement')
     def _visit_compound_statement(self, node: tree_sitter.Node):
         return ast_nodes.StatementBlock(
             block_level_nodes=self.visit(node.named_children),
             parser_node=node
         )
 
-    @visit_node_type.register('func_name')
+    @_visit_node_type.register('func_name')
     def _visit_func_name(self, node: tree_sitter.Node):
         return ast_nodes.FuncName(name=node.text.decode('utf-8'), parser_node=node)
 
-    @visit_node_type.register('function_declaration')
+    @_visit_node_type.register('function_declaration')
     def _visit_function_declaration(self, node: tree_sitter.Node):
         name_node = node.child_by_field_name('name')
         args_nodes = node.children_by_field_name('arg')
@@ -177,7 +199,7 @@ class TreeSitterBosVisitor:
             parser_node=node
         )
 
-    @visit_node_type.register('call_script_statement')
+    @_visit_node_type.register('call_script_statement')
     def _visit_call_script_statement(self, node: tree_sitter.Node):
         func_name = self.visit(node.child_by_field_name('function'))
         args = self.visit(node.child_by_field_name('arguments').named_children)
@@ -188,7 +210,7 @@ class TreeSitterBosVisitor:
             parser_node=node
         )
 
-    @visit_node_type.register('start_script_statement')
+    @_visit_node_type.register('start_script_statement')
     def _visit_start_script_statement(self, node: tree_sitter.Node):
         func_name = self.visit(node.child_by_field_name('function'))
         args = self.visit(node.child_by_field_name('arguments').named_children)
@@ -199,7 +221,7 @@ class TreeSitterBosVisitor:
             parser_node=node
         )
 
-    @visit_node_type.register('keyword_statement')
+    @_visit_node_type.register('keyword_statement')
     def _visit_keyword_statement(self, node: tree_sitter.Node):
         keyword = node.child_by_field_name('keyword').text.decode('utf-8')
         if keyword not in self.keyword_map:
@@ -213,11 +235,11 @@ class TreeSitterBosVisitor:
             parser_node=node,
         )
 
-    @visit_node_type.register('piece_name')
+    @_visit_node_type.register('piece_name')
     def _visit_piece_name(self, node: tree_sitter.Node):
         return ast_nodes.PieceName(name=node.text.decode('utf-8'), parser_node=node)
 
-    @visit_node_type.register('piece_declaration')
+    @_visit_node_type.register('piece_declaration')
     def _visit_piece_declaration(self, node: tree_sitter.Node):
         name_nodes = node.children_by_field_name('name')
 
@@ -226,11 +248,11 @@ class TreeSitterBosVisitor:
             parser_node=node
         )
 
-    @visit_node_type.register('var_name')
+    @_visit_node_type.register('var_name')
     def _visit_var_name(self, node: tree_sitter.Node):
         return ast_nodes.VarName(name=node.text.decode('utf-8'), parser_node=node)
 
-    @visit_node_type.register('static_var_declaration')
+    @_visit_node_type.register('static_var_declaration')
     def _visit_static_var_declaration(self, node: tree_sitter.Node):
         name_nodes = node.children_by_field_name('name')
 
@@ -239,14 +261,14 @@ class TreeSitterBosVisitor:
             parser_node=node
         )
 
-    @visit_node_type.register('unary_expression')
+    @_visit_node_type.register('unary_expression')
     def _visit_unary_expression(self, node: tree_sitter.Node):
         operand = self.visit(node.child_by_field_name('argument'))
         op = self.operator_map[node.child_by_field_name('operator').type]
 
         return ast_nodes.UnaryExpression(operand=operand, op=op, parser_node=node)
 
-    @visit_node_type.register('binary_expression')
+    @_visit_node_type.register('binary_expression')
     def _visit_binary_expression(self, node: tree_sitter.Node):
         left, op, right = self._extract_binary_expr_parts(node)
 
@@ -261,12 +283,12 @@ class TreeSitterBosVisitor:
         left = self.visit(node.child_by_field_name('left'))
         return left
 
-    @visit_node_type.register('source_file')
+    @_visit_node_type.register('source_file')
     def _visit_source_file(self, node: tree_sitter.Node):
         declarations = self.visit(node.named_children)
         return ast_nodes.File(top_level_nodes=declarations, parser_node=node)
 
-    @visit_node_type.register('if_statement')
+    @_visit_node_type.register('if_statement')
     def _visit_if_statement(self, node: tree_sitter.Node):
         condition = self.visit(node.child_by_field_name('condition'))
         then_block = self.visit(node.child_by_field_name('then'))
@@ -282,7 +304,7 @@ class TreeSitterBosVisitor:
             parser_node=node
         )
 
-    @visit_node_type.register('while_statement')
+    @_visit_node_type.register('while_statement')
     def _visit_while_statement(self, node: tree_sitter.Node):
         condition = self.visit(node.child_by_field_name('condition'))
         block = self.visit(node.child_by_field_name('body'))
@@ -293,11 +315,11 @@ class TreeSitterBosVisitor:
             parser_node=node
         )
 
-    @visit_node_type.register('get_term')
+    @_visit_node_type.register('get_term')
     def _visit_get_term(self, node: tree_sitter.Node):
         return ast_nodes.GetTerm(get_call=self.visit(node.named_child(0)), parser_node=node)
 
-    @visit_node_type.register('get_call')
+    @_visit_node_type.register('get_call')
     def _visit_get_call(self, node: tree_sitter.Node):
         value_index = self.visit(node.child_by_field_name('value_index'))
         args = self.visit(node.children_by_field_name('arg'))
@@ -308,21 +330,21 @@ class TreeSitterBosVisitor:
             parser_node=node
         )
 
-    @visit_node_type.register('rand_call')
+    @_visit_node_type.register('rand_call')
     def _visit_rand_call(self, node: tree_sitter.Node):
         return ast_nodes.RandTerm(
             min=self.visit(node.child_by_field_name('lower_bound')),
             max=self.visit(node.child_by_field_name('upper_bound')),
         )
 
-    @visit_node_type.register('var_name_term')
+    @_visit_node_type.register('var_name_term')
     def _visit_var_name_term(self, node: tree_sitter.Node):
         return ast_nodes.VarNameTerm(
             var_name=ast_nodes.VarName(name=node.text.decode('utf-8'), parser_node=node),
             parser_node=node
         )
 
-    @visit_node_type.register('assign_statement')
+    @_visit_node_type.register('assign_statement')
     def _visit_assign_statement(self, node: tree_sitter.Node):
         var_name_node = node.child_by_field_name('name')
         if not var_name_node:
@@ -337,7 +359,7 @@ class TreeSitterBosVisitor:
             parser_node=node
         )
 
-    @visit_node_type.register('increment_statement')
+    @_visit_node_type.register('increment_statement')
     def _visit_increment_statement(self, node: tree_sitter.Node):
         var_name = self.visit(node.child_by_field_name('name'))
 
@@ -345,13 +367,13 @@ class TreeSitterBosVisitor:
             variable=var_name,
             expression=ast_nodes.BinaryExpression(
                 left=ast_nodes.VarNameTerm(var_name=var_name),
-                op=ast_nodes.ExpressionOp.ADD,
+                op=ast_nodes.ExpressionOperator.ADD,
                 right=ast_nodes.Constant(1)
             ),
             parser_node=node
         )
 
-    @visit_node_type.register('decrement_statement')
+    @_visit_node_type.register('decrement_statement')
     def _visit_decrement_statement(self, node: tree_sitter.Node):
         var_name = self.visit(node.child_by_field_name('name'))
 
@@ -359,20 +381,20 @@ class TreeSitterBosVisitor:
             variable=var_name,
             expression=ast_nodes.BinaryExpression(
                 left=ast_nodes.VarNameTerm(var_name=var_name),
-                op=ast_nodes.ExpressionOp.MINUS,
+                op=ast_nodes.ExpressionOperator.MINUS,
                 right=ast_nodes.Constant(1)
             ),
             parser_node=node
         )
 
-    @visit_node_type.register('var_statement')
+    @_visit_node_type.register('var_statement')
     def _visit_var_statement(self, node: tree_sitter.Node):
         return ast_nodes.VarStatement(
             vars=self.visit(node.named_children),
             parser_node=node
         )
 
-    @visit_node_type.register('return_statement')
+    @_visit_node_type.register('return_statement')
     def _visit_return_statement(self, node: tree_sitter.Node):
         if node.named_child_count == 0:
             return ast_nodes.ReturnStatement(expression=None, parser_node=node)
@@ -382,35 +404,35 @@ class TreeSitterBosVisitor:
             parser_node=node
         )
 
-    @visit_node_type.register('string_literal')
+    @_visit_node_type.register('string_literal')
     def _visit_string_literal(self, node: tree_sitter.Node):
         return ast_nodes.StringLiteral(
             string=node.named_child(0).text.decode('utf-8'),
             parser_node=node
         )
 
-    @visit_node_type.register('define_name')
+    @_visit_node_type.register('define_name')
     def _visit_define_name(self, node: tree_sitter.Node):
         return preproc_nodes.DefineName(
             name=node.text.decode('utf-8'),
             parser_node=node
         )
 
-    @visit_node_type.register('preproc_arg')
+    @_visit_node_type.register('preproc_arg')
     def _visit_preproc_arg(self, node: tree_sitter.Node):
         return preproc_nodes.PreprocArg(
             string=node.text.decode('utf-8').replace('\r', '').replace('\\', ''),
             parser_node=node
         )
 
-    @visit_node_type.register('preproc_include')
+    @_visit_node_type.register('preproc_include')
     def _visit_preproc_include(self, node: tree_sitter.Node):
         return preproc_nodes.PreprocInclude(
             path=self.visit(node.named_child(0)),
             parser_node=node
         )
 
-    @visit_node_type.register('preproc_def')
+    @_visit_node_type.register('preproc_def')
     def _visit_preproc_def(self, node: tree_sitter.Node):
         return preproc_nodes.PreprocDefine(
             name=self.visit(node.child_by_field_name('name')),
@@ -418,7 +440,7 @@ class TreeSitterBosVisitor:
             parser_node=node
         )
 
-    @visit_node_type.register('preproc_function_def')
+    @_visit_node_type.register('preproc_function_def')
     def _visit_preproc_function_def(self, node: tree_sitter.Node):
         return preproc_nodes.PreprocFunctionDefine(
             name=self.visit(node.child_by_field_name('name')),
@@ -427,21 +449,21 @@ class TreeSitterBosVisitor:
             parser_node=node
         )
 
-    @visit_node_type.register('preproc_undef')
+    @_visit_node_type.register('preproc_undef')
     def _visit_preproc_undef(self, node: tree_sitter.Node):
         return preproc_nodes.PreprocUndef(
             name=self.visit(node.child_by_field_name('name')),
             parser_node=node
         )
 
-    @visit_node_type.register('system_lib_string')
+    @_visit_node_type.register('system_lib_string')
     def _visit_system_lib_string(self, node: tree_sitter.Node):
         return preproc_nodes.SystemLibString(
             string=node.named_child(0).text.decode('utf-8'),
             parser_node=node
         )
 
-    @visit_node_type.register('preproc_params')
+    @_visit_node_type.register('preproc_params')
     def _visit_preproc_params(self, node: tree_sitter.Node):
         return [
             ast_nodes.NameNode(
@@ -450,11 +472,11 @@ class TreeSitterBosVisitor:
             ) for child in node.named_children
         ]
 
-    @visit_node_type.register('preproc_argument_list')
+    @_visit_node_type.register('preproc_argument_list')
     def _visit_preproc_argument_list(self, node: tree_sitter.Node):
         return self.visit(node.named_children)
 
-    @visit_node_type.register('preproc_directive')
+    @_visit_node_type.register('preproc_directive')
     def _visit_preproc_directive(self, node: tree_sitter.Node):
         return preproc_nodes.PreprocDirective(
             directive=self.visit(node.child_by_field_name('directive')),
@@ -462,15 +484,15 @@ class TreeSitterBosVisitor:
             parser_node=node
         )
 
-    @visit_node_type.register('preproc_defined')
+    @_visit_node_type.register('preproc_defined')
     def _visit_preproc_defined(self, node: tree_sitter.Node):
         return preproc_nodes.PreprocDefinedTerm(
             name=self.visit(node.named_child(0)),
             parser_node=node
         )
 
-    @visit_node_type.register('preproc_if')
-    @visit_node_type.register('preproc_elif')
+    @_visit_node_type.register('preproc_if')
+    @_visit_node_type.register('preproc_elif')
     def _visit_preproc_if(self, node: tree_sitter.Node):
         return preproc_nodes.PreprocIf(
             condition=self.visit(node.child_by_field_name('condition')),
@@ -479,8 +501,8 @@ class TreeSitterBosVisitor:
             parser_node=node
         )
 
-    @visit_node_type.register('preproc_ifdef')
-    @visit_node_type.register('preproc_elifdef')
+    @_visit_node_type.register('preproc_ifdef')
+    @_visit_node_type.register('preproc_elifdef')
     def _visit_preproc_ifdef(self, node: tree_sitter.Node):
 
         cond_child = node.child_by_field_name('condition')
@@ -492,7 +514,7 @@ class TreeSitterBosVisitor:
 
         if 'ifndef' in node.child(0).type:
             condition = preproc_nodes.PreprocUnaryExpression(
-                operator=ast_nodes.ExpressionOp.LOGICAL_NOT,
+                operator=ast_nodes.ExpressionOperator.LOGICAL_NOT,
                 operand=condition,
                 parser_node=cond_child
             )
@@ -507,15 +529,15 @@ class TreeSitterBosVisitor:
             parser_node=node
         )
 
-    @visit_node_type.register('preproc_else')
+    @_visit_node_type.register('preproc_else')
     def _visit_preproc_else(self, node: tree_sitter.Node):
         return self.visit(node.children_by_field_name('body'))
 
-    @visit_node_type.register('preproc_parenthesized_expression')
+    @_visit_node_type.register('preproc_parenthesized_expression')
     def _visit_preproc_parenthesized_expression(self, node: tree_sitter.Node):
         return self.visit(node.named_child(0))
 
-    @visit_node_type.register('preproc_binary_expression')
+    @_visit_node_type.register('preproc_binary_expression')
     def _visit_preproc_binary_expression(self, node: tree_sitter.Node):
         left, op, right = self._extract_binary_expr_parts(node)
 
@@ -532,10 +554,10 @@ class TreeSitterBosVisitor:
         right = self.visit(node.child_by_field_name('right'))
         if op is None:
             op_text = node.child_by_field_name('operator').type
-            warnings.warn(f'Could not find operator for binary expression {op_text}', UserWarning)
+            warnings.warn(f'Could not find operator for "{op_text}"', UserWarning)
         return left, op, right
 
-    @visit_node_type.register('preproc_unary_expression')
+    @_visit_node_type.register('preproc_unary_expression')
     def _visit_preproc_unary_expression(self, node: tree_sitter.Node):
         operand = self.visit(node.child_by_field_name('argument'))
         operator = self.operator_map[node.child_by_field_name('operator').type]
@@ -546,7 +568,7 @@ class TreeSitterBosVisitor:
             parser_node=node
         )
 
-    @visit_node_type.register('preproc_call_expression')
+    @_visit_node_type.register('preproc_call_expression')
     def _visit_preproc_call_expression(self, node: tree_sitter.Node):
         function = self.visit(node.child_by_field_name('function'))
         args = self.visit(node.children_by_field_name('arg'))
@@ -557,7 +579,7 @@ class TreeSitterBosVisitor:
             parser_node=node
         )
 
-    @visit_node_type.register('macro_call_expression')
+    @_visit_node_type.register('macro_call_expression')
     def _visit_macro_call_expression(self, node: tree_sitter.Node):
         return ast_nodes.MacroCallExpression(
             function=self.visit(node.child_by_field_name('function')),
@@ -565,21 +587,21 @@ class TreeSitterBosVisitor:
             parser_node=node
         )
 
-    @visit_node_type.register('macro_call_statement')
+    @_visit_node_type.register('macro_call_statement')
     def _visit_macro_call_statement(self, node: tree_sitter.Node):
         return ast_nodes.MacroCallStatement(
             macro_call=self.visit(node.named_child(0)),
             parser_node=node
         )
 
-    @visit_node_type.register('macro_name_statement')
+    @_visit_node_type.register('macro_name_statement')
     def _visit_macro_name_statement(self, node: tree_sitter.Node):
         return ast_nodes.MacroNameStatement(
             macro_name=self.visit(node.named_child(0)),
             parser_node=node
         )
 
-    @visit_node_type.register('preproc_line')
+    @_visit_node_type.register('preproc_line')
     def _visit_preproc_line(self, node: tree_sitter.Node):
         filename_node = node.child_by_field_name('filename')
         filename = None

@@ -198,7 +198,7 @@ class CobCompiler:
             elif isinstance(arg, nodes.Axis):
                 immediate_vals.append(arg.axis.value)
             else:
-                immediate_vals.insert(0, 0)
+                immediate_vals.append(0)
 
         # Iterate backwards because we're building a Stack (FILO), not a Queue (FIFO)
         for arg in stack_args[::-1]:
@@ -303,14 +303,53 @@ class CobCompiler:
     # expressions
     @_handle_node.register
     def _handle_node__unary_expression(self, expr: nodes.UnaryExpression):
-        self.handle_node(expr.operand)
-        self.code.append(CobOpCode.from_unary_expression_op(expr.op))
+        maybe_folded_expr = self.constant_folding(expr)
+        if maybe_folded_expr is not expr:
+            # node changed, reprocess
+            log.debug('Unary expression folded to %s', repr(maybe_folded_expr))
+            self.handle_node(maybe_folded_expr)
+        else:
+            self.handle_node(expr.operand)
+            self.code.append(CobOpCode.from_unary_expression_op(expr.op))
 
     @_handle_node.register
     def _handle_node__binary_expression(self, expr: nodes.BinaryExpression):
-        self.handle_node(expr.left)
-        self.handle_node(expr.right)
-        self.code.append(CobOpCode.from_binary_expression_op(expr.op))
+        maybe_folded_expr = self.constant_folding(expr)
+        if maybe_folded_expr is not expr:
+            # node changed, reprocess
+            log.debug('Binary expression folded to %s', repr(maybe_folded_expr))
+            self.handle_node(maybe_folded_expr)
+        else:
+            self.handle_node(expr.left)
+            self.handle_node(expr.right)
+            self.code.append(CobOpCode.from_binary_expression_op(expr.op))
+
+    @singledispatchmethod
+    def constant_folding(self, node: nodes.ASTNode):
+        return node
+
+    @constant_folding.register
+    def _constant_folding__unary_expression(self, expr: nodes.UnaryExpression):
+        operand = self.constant_folding(expr.operand)
+        if isinstance(operand, nodes.Constant):
+            log.debug('Folding %s %s', expr.op, repr(operand))
+            return nodes.Constant(
+                expr.op.eval(operand.number_value()),
+                parser_node=expr.parser_node
+            )
+        return expr
+
+    @constant_folding.register
+    def _constant_folding__binary_expression(self, expr: nodes.BinaryExpression):
+        left = self.constant_folding(expr.left)
+        right = self.constant_folding(expr.right)
+        if isinstance(left, nodes.Constant) and isinstance(right, nodes.Constant):
+            log.debug('Folding %s %s %s', repr(left), expr.op, repr(right))
+            return nodes.Constant(
+                expr.op.eval(left.number_value(), right.number_value()),
+                parser_node=expr.parser_node
+            )
+        return expr
 
     # terms
     @_handle_node.register

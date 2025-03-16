@@ -1,5 +1,6 @@
 import difflib
 import json
+import logging
 import os
 import pdb
 import statistics
@@ -182,12 +183,15 @@ def main3():
 
     bos_lang = tree_sitter.Language(tree_sitter_bos.language())
     parser = tree_sitter.Parser(bos_lang)
-    top_path = Path('../bos/example_files')
+    top_path = Path('../bos/example_files/Units')
 
     outer_start_time = time.perf_counter()
 
     for file in walk_files(top_path, ['.bos']):
         if 'array' in str(file):
+            continue
+
+        if 'leg' not in str(file):
             continue
 
         print('Processing', file)
@@ -210,9 +214,13 @@ def main3():
 
         ast_time = time.perf_counter()
 
+        new_bytes = None
         try:
             compiler = CobCompiler()
-            compiler.compile_file_ast(ast_node_tree)
+            new_bytes = compiler.compile_file_ast(ast_node_tree).to_bytes()
+            Path('./compiled').mkdir(exist_ok=True)
+            with open(Path('./compiled').joinpath(file.name).with_suffix('.cob'), 'wb') as f:
+                f.write(new_bytes)
         except CodeError:
             print('file failed to compile :(')
         compile_time = time.perf_counter()
@@ -223,6 +231,26 @@ def main3():
             f'Compile time: {compile_time - ast_time:.4f}',
             f'Total time:   {compile_time - start_time:.4f}'
         )
+
+        if new_bytes is None:
+            continue
+
+        cob_path = Path(str(file).replace('\\bos\\', '\\cob\\').replace('.bos', '.cob'))
+        if not cob_path.exists():
+            print('original compiled file does not exist')
+            continue
+
+        with open(cob_path, 'rb') as f:
+            old_bytes = f.read()
+
+        if new_bytes == old_bytes:
+            print("Compiled byte data matches!?!?")
+        else:
+            print("Byte data mismatch found between compiled files:")
+            if len(old_bytes) != len(new_bytes):
+                print(f"Length mismatch: old {len(old_bytes)} != new {len(new_bytes)}")
+                if len(old_bytes) < len(new_bytes):
+                    print(f'File size increased for {file.name}, this should not happen', file=sys.stderr)
 
     print('Total time:', time.perf_counter() - outer_start_time)
 
@@ -289,6 +317,7 @@ def purge_preproc_nodes(ast_dict):
     return new_values
 
 if __name__ == "__main__":
+    logging.basicConfig(format='%(levelname)s %(filename)s %(funcName)s %(lineno)s: %(message)s', level=logging.INFO)
     # main()
     # main2()
     main3()

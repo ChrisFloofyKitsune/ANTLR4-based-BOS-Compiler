@@ -2,7 +2,7 @@ from abc import ABC
 from types import SimpleNamespace
 
 from bos.ast_nodes.base_nodes import ValueNode
-from bos.ast_nodes.enums import ExpressionOp
+from bos.ast_nodes.enums import ExpressionOperator
 from bos.ast_nodes.preproc_nodes import PreprocCallExpression
 
 
@@ -11,7 +11,7 @@ class Expression(ValueNode, ABC):
 
 
 class UnaryExpression(Expression):
-    op: ExpressionOp
+    op: ExpressionOperator
     operand: ValueNode
 
     def get_value(self):
@@ -20,7 +20,7 @@ class UnaryExpression(Expression):
 
 class BinaryExpression(Expression):
     left: ValueNode
-    op: ExpressionOp
+    op: ExpressionOperator
     right: ValueNode
 
     def get_value(self):
