@@ -1,29 +1,24 @@
-import difflib
-import json
 import logging
 import os
-import pdb
 import statistics
 import sys
 import time
-import traceback
 from itertools import pairwise
-from pathlib import Path, PurePosixPath
+from pathlib import Path
 
-import pydantic_core
 import tree_sitter
 import tree_sitter_bos
 
 from bos.bos_loader import BosLoader
 from bos.bos_preprocessor import BosPreprocessor
-from bos_tree_sitter.ts_ast_visitor import TreeSitterBosVisitor
+from bos.ts_ast_visitor import TreeSitterBosVisitor
 from cob.compiler.cob_compiler import CobCompiler
 from code_error import CodeError
 
 
 def main():
     bos_language = tree_sitter.Language(tree_sitter_bos.language())
-    bos_files_dir = Path('../bos/example_files')
+    bos_files_dir = Path('example_files')
     parser = tree_sitter.Parser(bos_language)
 
     parse_time_stats = []
@@ -183,7 +178,7 @@ def main3():
 
     bos_lang = tree_sitter.Language(tree_sitter_bos.language())
     parser = tree_sitter.Parser(bos_lang)
-    top_path = Path('../bos/example_files/Units')
+    top_path = Path('example_files/Units')
 
     outer_start_time = time.perf_counter()
 
@@ -218,8 +213,8 @@ def main3():
         try:
             compiler = CobCompiler()
             new_bytes = compiler.compile_file_ast(ast_node_tree).to_bytes()
-            Path('./compiled').mkdir(exist_ok=True)
-            with open(Path('./compiled').joinpath(file.name).with_suffix('.cob'), 'wb') as f:
+            Path('../bos_tree_sitter/compiled').mkdir(exist_ok=True)
+            with open(Path('../bos_tree_sitter/compiled').joinpath(file.name).with_suffix('.cob'), 'wb') as f:
                 f.write(new_bytes)
         except CodeError:
             print('file failed to compile :(')
@@ -276,9 +271,11 @@ def main3_old__compare_new_and_old_ast(new_ast_dict, file, ast_node_tree):
             new_bytes = cob_file_new.to_bytes()
             old_bytes = cob_file_old.to_bytes()
 
-            Path('./compiled').mkdir(exist_ok=True)
-            cob_file_new.save_to_file(Path('./compiled').joinpath(Path(file.name).with_suffix(".new_parser.cob")))
-            cob_file_old.save_to_file(Path('./compiled').joinpath(Path(file.name).with_suffix(".old_parser.cob")))
+            Path('../bos_tree_sitter/compiled').mkdir(exist_ok=True)
+            cob_file_new.save_to_file(Path(
+                '../bos_tree_sitter/compiled').joinpath(Path(file.name).with_suffix(".new_parser.cob")))
+            cob_file_old.save_to_file(Path(
+                '../bos_tree_sitter/compiled').joinpath(Path(file.name).with_suffix(".old_parser.cob")))
 
             if new_bytes != old_bytes:
                 print("Byte data mismatch found between compiled files:")

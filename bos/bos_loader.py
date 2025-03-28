@@ -5,6 +5,7 @@ from pathlib import Path
 
 import antlr4.error.ErrorListener
 import pcpp
+import tree_sitter
 from antlr4 import Parser
 from antlr4.CommonTokenStream import CommonTokenStream
 from antlr4.InputStream import InputStream
@@ -13,7 +14,7 @@ from antlr4.atn.PredictionMode import PredictionMode
 from antlr4.error.ErrorStrategy import BailErrorStrategy
 
 from bos import ast_nodes
-from bos.ast_visitor import ASTVisitor
+from bos.ast_visitor import TreeSitterBosVisitor
 from bos.bos_preprocessor import BosPreprocessor
 from bos.gen.BosLexer import BosLexer
 from bos.gen.BosParser import BosParser
@@ -22,15 +23,6 @@ from code_location import CodeLocation
 
 
 class BosLoader:
-
-    class ErrorListener(antlr4.error.ErrorListener.ErrorListener):
-        def __init__(self, loader: 'BosLoader'):
-            self.loader = loader
-
-        def syntaxError(self, recognizer: Parser, offending_symbol: CommonToken, line, column, msg, e):
-            token_stream = recognizer.getTokenStream()
-            self.loader.parse_errors.append(CodeError(msg, CodeLocation.from_token(offending_symbol, token_stream)))
-
     def __init__(
         self,
         bos_file_path: str | PathLike[str],
@@ -39,17 +31,16 @@ class BosLoader:
         enable_constant_folding=False,
         file_contents: str = None,
     ):
+        self.log = logging.getLogger(self.__class__.__name__).getChild(self.filepath.name)
 
         self.filepath = Path(bos_file_path)
         self.include_paths = [Path(p) for p in include_paths] if include_paths is not None else []
         self.enable_constant_folding = enable_constant_folding
 
+        self.file_contents: str | None = None
+
         if file_contents is not None:
             self.file_contents = file_contents
-
-        self.log = logging.getLogger(self.__class__.__name__).getChild(self.filepath.name)
-
-        self.file_contents: str | None = None
 
         self.preprocessor: pcpp.Preprocessor | None = None
         self.preprocessed_file_contents: str | None = None
@@ -59,16 +50,16 @@ class BosLoader:
         self.bos_parser: BosParser | None = None
 
         self.parse_errors: list[CodeError] = []
-        self.parser_node_tree: BosParser.FileContext | None = None
+        self.parser_tree: tree_sitter.Tree | None = None
         self.ast_node_tree: ast_nodes.File | None = None
 
     def _load_file_contents(self, force_reload=False):
         if self.file_contents is not None and not force_reload:
             return
 
-        with open(self.filepath, 'rt', encoding='utf8') as f:
+        with open(self.filepath, 'rt') as f:
             self.file_contents = f.read()
-            self.log.debug('File loaded, %d bytes', len(self.file_contents.encode('utf8')))
+            self.log.debug('File %s loaded, %d bytes', self.filepath, self.filepath.lstat().st_size)
 
     def _run_preprocessor(self, force_reload=False):
         if self.preprocessed_file_contents is not None and not force_reload:
@@ -83,7 +74,7 @@ class BosLoader:
         ) = self.preprocessor.process_file(self.file_contents, self.filepath, self.include_paths)
 
     def _run_parser(self, force_reload=False):
-        if self.parser_node_tree is not None and not force_reload:
+        if self.parser_tree is not None and not force_reload:
             return
 
         start_time = time.perf_counter()
@@ -93,7 +84,7 @@ class BosLoader:
         self.bos_parser = BosParser(self.token_stream)
         self.bos_parser.addErrorListener(self.ErrorListener(self))
 
-        self.parser_node_tree = self.bos_parser.file_()
+        self.parser_tree = self.bos_parser.file_()
 
         end_time = time.perf_counter()
         self.log.debug('Parsing took %.2f seconds (%.2f mins)', end_time - start_time, (end_time - start_time) / 60)
@@ -106,7 +97,7 @@ class BosLoader:
             return
 
         ast_visitor = ASTVisitor()
-        self.ast_node_tree = ast_visitor.visitFile(self.parser_node_tree)
+        self.ast_node_tree = ast_visitor.visitFile(self.parser_tree)
         self.log.debug('AST conversion complete')
 
     def load_file(self, force_reload=False) -> ast_nodes.File:

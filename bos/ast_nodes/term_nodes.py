@@ -1,5 +1,4 @@
 import contextlib
-import math
 from abc import ABC
 from types import SimpleNamespace
 from typing import ClassVar, Literal, Any
@@ -63,7 +62,7 @@ class Constant(ValueNode):
             raise CodeError(
                 f'Error compiling constant {self.model_dump()}. '
                 f'Likely an un-replaced macro? (value: {self.base_value})',
-                CodeLocation.from_parser_node(self.parser_node)
+                CodeLocation.from_node(self.parser_node)
             )
 
         match self.const_type:
