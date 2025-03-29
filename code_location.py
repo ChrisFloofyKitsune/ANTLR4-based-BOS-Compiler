@@ -1,86 +1,82 @@
-import sys
-from dataclasses import dataclass
-from functools import total_ordering
-from typing import Self
+from typing import Self, NamedTuple
 
-from antlr4 import ParserRuleContext
-from antlr4.BufferedTokenStream import BufferedTokenStream
-from antlr4.Token import CommonToken
+from tree_sitter import Node as TSNode
 
-from bos.gen.BosLexer import BosLexer
-from bos.gen.BosParser import BosParser
+from bos.ast_nodes import ASTNode
+from ts_util import nearest_previous
 
 
-@total_ordering
-@dataclass()
-class CodeLocation:
+class CodeLocation(NamedTuple):
+    source_file: str
     start_line: int
     start_column: int
     end_line: int
     end_column: int
-    source_file: str
 
     @classmethod
-    def from_parser_node(cls, parser_node: ParserRuleContext | None, starting_file: str = None) -> Self | None:
-        if parser_node is None:
+    def from_node(cls, node: ASTNode | TSNode | None, source_file: str = None) -> Self | None:
+        if isinstance(node, ASTNode):
+            node = node.parser_node
+
+        if not isinstance(node, TSNode):
             return None
 
-        start: CommonToken = parser_node.start
-        stop: CommonToken = parser_node.stop
-        parser: BosParser = parser_node.parser
-        token_stream: BufferedTokenStream = parser.getTokenStream()
+        start_line, start_column = node.start_point
+        end_line, end_column = node.end_point
 
-        loc = cls.from_token(start, token_stream, starting_file=starting_file)
-
-        if loc is None:
-            return None
-
-        loc.end_line = stop.line + (loc.start_line - start.line)
-        loc.end_column = stop.column + 1 + len(stop.text)
-        return loc
-
-    @classmethod
-    def from_token(
-        cls,
-        token: CommonToken, token_stream: BufferedTokenStream, 
-        *, 
-        starting_file: str = None,use_line_directives=True
-    ) -> Self | None:
         line_offset = 0
-        source_file = starting_file if starting_file is not None else 'source file unspecified'
 
-        if use_line_directives:
-            try:
-                preproc_token_idx = token_stream.previousTokenOnChannel(token.tokenIndex, BosLexer.LINE_MACRO)
-                if preproc_token_idx != -1:
-                    preproc_token: CommonToken = token_stream.tokens[preproc_token_idx]
-                    if preproc_token.text is not None:
-                        line_str, source_file = preproc_token.text.split()[1:3]
-                        line_offset = int(line_str) - preproc_token.line - 1
-            except Exception as err:
-                print(f'WARN: another error occurred while trying to calculate error_loc: {str(err)}', file=sys.stderr)
-                return None
+        if preproc_line_node := nearest_previous(node, "preproc_line"):
+            lineno = int(preproc_line_node.child_by_field_name('lineno').text.decode('utf-8'))
+            line_offset = lineno - preproc_line_node.start_point[0] - 1
+            if filename_node := preproc_line_node.child_by_field_name('filename'):
+                source_file = filename_node.named_child(0).text.decode('utf-8')
 
-        return cls(
-            token.line + line_offset,
-            token.column + 1,
-            token.line + line_offset,
-            token.column + 1 + len(token.text),
-            source_file
-        )
+        return cls(source_file, start_line + line_offset, start_column, end_line + line_offset, end_column)
 
-    def _comp_tuple(self) -> tuple[str, int, int, int, int]:
-        return self.source_file, self.start_line, self.start_column, self.end_line, self.end_column
 
-    def __repr__(self):
-        return f'CodeLocation({self.source_file}, {self.start_line}, {self.start_column}, {self.end_line}, {self.end_column})'
+if __name__ == "__main__":
+    def main():
+        from tree_sitter_bos import language
+        from tree_sitter import Language, Parser, Query, QueryCursor
+        from bos.ast_nodes import Constant
+        bos_lang = Language(language())
+        parser = Parser(bos_lang)
 
-    def __eq__(self, other):
-        if not isinstance(other, CodeLocation):
-            return NotImplemented
-        return self._comp_tuple() == other._comp_tuple()
+        test_data = \
+            b"""
+            funcName(a, b, c, d) {
+                a = 10;
+                #line 1 "source_file.bos"
+                b = 20;
+                #line 10 "other_file.h"
+                c = 30;
+                #line 20 "source_file.bos"
+                d = 10;
+                d = 20;
+                d = 30;
+                if (a == 10) {
+                    #line 30 "other_file.h"
+                    b = 20;               // 30
+                    if (TRUE) {           // 31
+                        if (TRUE) {       // 32
+                            a = 1;        // 33
+                            b = 2;        // 34
+                            c = 3;        // 35
+                        }
+                    }
+                }
+            }
+            """
+        tree = parser.parse(test_data)
+        query = Query(bos_lang, "(assign_statement) @target")
+        q_cursor = QueryCursor(query)
+        for _, thing in q_cursor.matches(tree.root_node):
+            node = thing['target'][0]
+            loc = CodeLocation.from_node(node, "blah.bos")
+            loc2 = CodeLocation.from_node(Constant(0, parser_node=node), "blah.bos")
+            print(loc)
+            assert loc == loc2
 
-    def __lt__(self, other):
-        if not isinstance(other, CodeLocation):
-            return NotImplemented
-        return self._comp_tuple() < other._comp_tuple()
+
+    main()

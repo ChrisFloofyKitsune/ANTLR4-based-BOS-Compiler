@@ -1,4 +1,6 @@
+import logging
 import os.path
+import pdb
 
 import sys
 import time
@@ -12,7 +14,7 @@ from cob.compiler.cob_compiler import CobCompiler
 
 
 def main():
-    examples_dir = Path('./example_files/Raptors')
+    examples_dir = Path('./example_files/')
     preprocessed_dir = Path('./preprocessed')
     preprocessed_dir.mkdir(exist_ok=True)
 
@@ -51,7 +53,7 @@ ______________________________________________
                 try:
                     print("*** COMPILING ***")
                     compiler = CobCompiler()
-                    compiler._handle_node(file_ast)
+                    compiler.handle_node(file_ast)
                 except BaseException as err:
                     sys.stdout.flush()
                     print(f'Error compiling {bos_filepath}', file=sys.stderr, flush=True)
@@ -63,6 +65,7 @@ ______________________________________________
 
 
 if __name__ == '__main__':
+    logging.basicConfig(format='%(levelname)s %(filename)s %(function)s %(lineno)s: %(message)s', level=logging.DEBUG)
     start = time.perf_counter()
     main()
     end = time.perf_counter()

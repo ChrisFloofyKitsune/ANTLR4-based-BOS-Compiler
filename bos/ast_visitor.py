@@ -1,330 +1,639 @@
-import json
 import operator
-from types import SimpleNamespace
+import warnings
+from functools import singledispatchmethod, reduce
+from types import NoneType
+from typing import Any, ClassVar
 
-from antlr4.ParserRuleContext import ParserRuleContext
+import tree_sitter
+import tree_sitter_bos
 
-import bos.ast_nodes as nodes
-from bos.gen.BosParser import BosParser
-from bos.gen.BosParserVisitor import BosParserVisitor
+from bos import ast_nodes
+from bos.ast_nodes import preproc_nodes
+from value_dispatch import ValueDispatch
+
+_bos_lang = tree_sitter.Language(tree_sitter_bos.language())
 
 
-class ASTVisitor(BosParserVisitor):
-
-    UNARY_OP_FUNC_MAPPING = {
-        nodes.ExpressionOp.LOGICAL_NOT: lambda a: int(not bool(a))
+class TreeSitterBosVisitor:
+    super_to_subtype_map: ClassVar[dict[str, tuple[str, ...]]] = {
+        _bos_lang.node_kind_for_id(st): tuple(map(_bos_lang.node_kind_for_id, _bos_lang.subtypes(st)))
+        for st in _bos_lang.supertypes
     }
 
-    BINARY_OP_FUNC_MAPPING = {
-        nodes.ExpressionOp.MULT: operator.mul,
-        nodes.ExpressionOp.DIV: operator.truediv,
-        nodes.ExpressionOp.MOD: operator.mod,
-        nodes.ExpressionOp.ADD: operator.add,
-        nodes.ExpressionOp.MINUS: operator.sub,
-
-        nodes.ExpressionOp.COMP_LESS: lambda a, b: int(a < b),
-        nodes.ExpressionOp.COMP_LESS_EQUAL: lambda a, b: int(a <= b),
-        nodes.ExpressionOp.COMP_GREATER: lambda a, b: int(a > b),
-        nodes.ExpressionOp.COMP_GREATER_EQUAL: lambda a, b: int(a >= b),
-        nodes.ExpressionOp.COMP_EQUAL: lambda a, b: int(a == b),
-        nodes.ExpressionOp.COMP_NOT_EQUAL: lambda a, b: int(a != b),
-
-        nodes.ExpressionOp.BITWISE_AND: lambda a, b: int(a) & int(b),
-        nodes.ExpressionOp.BITWISE_OR: lambda a, b: int(a) | int(b),
-        nodes.ExpressionOp.BITWISE_XOR: lambda a, b: int(a) ^ int(b),
-
-        nodes.ExpressionOp.LOGICAL_AND: lambda a, b: int(bool(a) and bool(b)),
-        nodes.ExpressionOp.LOGICAL_OR: lambda a, b: int(bool(a) or bool(b)),
-        nodes.ExpressionOp.LOGICAL_XOR: lambda a, b: int(bool(a) ^ bool(b))
+    sub_to_supertype_map: ClassVar[dict[str, str]] = {
+        subtype: supertype
+        for supertype, subtypes in super_to_subtype_map.items()
+        for subtype in subtypes
     }
 
-    def __init__(self, *args, enable_constant_folding=False, **kwargs):
-        self.enable_constant_folding = enable_constant_folding
-        super().__init__(*args, **kwargs)
+    keyword_map = {
+        'call-script': ast_nodes.Keyword.CALL_SCRIPT,
+        'start-script': ast_nodes.Keyword.START_SCRIPT,
 
-    def aggregateResult(self, aggregate, next_result):
-        if next_result is None:
-            return aggregate
+        'signal': ast_nodes.Keyword.SIGNAL,
+        'set-signal-mask': ast_nodes.Keyword.SET_SIGNAL_MASK,
 
-        if aggregate is None:
-            return next_result
+        'sleep': ast_nodes.Keyword.SLEEP,
 
-        if not isinstance(aggregate, list):
-            return [aggregate, next_result]
+        'set': ast_nodes.Keyword.SET,
+        'get': ast_nodes.Keyword.GET,
 
-        return [*aggregate, next_result]
+        'spin': ast_nodes.Keyword.SPIN,
+        'stop-spin': ast_nodes.Keyword.STOP_SPIN,
 
-    def visitChildren(self, node):
-        result = super().visitChildren(node)
-        if isinstance(result, nodes.ASTNode):
-            return result
-        return nodes.UndefNode(contents=result, parser_node=node)
+        'turn': ast_nodes.Keyword.TURN,
+        'move': ast_nodes.Keyword.MOVE,
 
-    def visitTypedChildren(self, node: ParserRuleContext, child_type: type[ParserRuleContext]):
-        result = []
-        for child in node.getTypedRuleContexts(child_type):
-            result.append(self.visit(child))
-        return result
+        'wait-for-turn': ast_nodes.Keyword.WAIT_FOR_TURN,
+        'wait-for-move': ast_nodes.Keyword.WAIT_FOR_MOVE,
 
-    def visitPieceName(self, ctx: BosParser.PieceNameContext):
-        return nodes.PieceName(name=ctx.getText(), parser_node=ctx)
+        'hide': ast_nodes.Keyword.HIDE,
+        'show': ast_nodes.Keyword.SHOW,
 
-    def visitPieceDecl(self, ctx: BosParser.PieceDeclContext):
-        return nodes.PieceDeclaration(names=self.visitTypedChildren(ctx, BosParser.PieceNameContext), parser_node=ctx)
+        'emit-sfx': ast_nodes.Keyword.EMIT_SFX,
+        'explode': ast_nodes.Keyword.EXPLODE,
 
-    def visitVarName(self, ctx: BosParser.VarNameContext):
-        return nodes.VarName(name=ctx.getText(), parser_node=ctx)
+        'attach-unit': ast_nodes.Keyword.ATTACH_UNIT,
+        'drop-unit': ast_nodes.Keyword.DROP_UNIT,
 
-    def visitStaticVarDecl(self, ctx: BosParser.StaticVarDeclContext):
-        return nodes.StaticVarDeclaration(names=self.visitTypedChildren(ctx, BosParser.VarNameContext), parser_node=ctx)
+        # effectively removed from the language, these do nothing
+        'cache': ast_nodes.Keyword.CACHE,
+        'dont-cache': ast_nodes.Keyword.DONT_CACHE,
+        'dont-shadow': ast_nodes.Keyword.DONT_SHADE,
+        'dont-shade': ast_nodes.Keyword.DONT_SHADE,
+    }
 
-    def visitFuncName(self, ctx: BosParser.FuncNameContext):
-        return nodes.FuncName(name=ctx.getText(), parser_node=ctx)
+    operator_map = {
+        '+': ast_nodes.ExpressionOperator.ADD,
+        '-': ast_nodes.ExpressionOperator.MINUS,
+        '*': ast_nodes.ExpressionOperator.MULT,
+        '/': ast_nodes.ExpressionOperator.DIV,
+        '%': ast_nodes.ExpressionOperator.MOD,
+        '^^': ast_nodes.ExpressionOperator.LOGICAL_XOR,
+        '||': ast_nodes.ExpressionOperator.LOGICAL_OR,
+        '&&': ast_nodes.ExpressionOperator.LOGICAL_AND,
+        '!': ast_nodes.ExpressionOperator.LOGICAL_NOT,
+        '^': ast_nodes.ExpressionOperator.BITWISE_XOR,
+        '|': ast_nodes.ExpressionOperator.BITWISE_OR,
+        '&': ast_nodes.ExpressionOperator.BITWISE_AND,
+        '==': ast_nodes.ExpressionOperator.COMP_EQUAL,
+        '!=': ast_nodes.ExpressionOperator.COMP_NOT_EQUAL,
+        '>': ast_nodes.ExpressionOperator.COMP_GREATER,
+        '>=': ast_nodes.ExpressionOperator.COMP_GREATER_EQUAL,
+        '<': ast_nodes.ExpressionOperator.COMP_LESS,
+        '<=': ast_nodes.ExpressionOperator.COMP_LESS_EQUAL,
+    }
 
-    def visitFuncDecl(self, ctx: BosParser.FuncDeclContext):
-        return nodes.FuncDeclaration(
-            name=self.visit(ctx.funcName()),
-            args=self.visitTypedChildren(ctx, BosParser.ArgNameContext),
-            block=self.visit(ctx.statementBlock()),
-            parser_node=ctx
-        )
+    def visit(self, obj):
+        try:
+            return self._visit(obj)
+        except Exception as e:
+            note = repr(obj)
+            if len(note) > 100:
+                note = note[:100] + '...'
+            if note not in getattr(e, "__notes__", []):
+                e.add_note(repr(obj))
+            raise
 
-    def visitConstant(self, ctx: BosParser.ConstantContext):
-        return nodes.Constant(value=ctx.getText(), parser_node=ctx)
+    @singledispatchmethod
+    def _visit(self, obj: Any) -> ast_nodes.ASTNode | list[ast_nodes.ASTNode]:
+        raise NotImplementedError(f'visit not implemented for object {repr(obj)}')
 
-    def visitAxis(self, ctx: BosParser.AxisContext):
-        return nodes.Axis(axis=nodes.AxisEnum.from_str(ctx.getText()), parser_node=ctx)
-
-    def visitArgName(self, ctx: BosParser.ArgNameContext):
-        return nodes.ArgName(name=ctx.getText(), parser_node=ctx)
-
-    def visitUnaryExpr(self, ctx: BosParser.UnaryExprContext):
-        op = nodes.ExpressionOp(ctx.op.type)
-        operand = self.visit(ctx.operand)
-
-        if self.enable_constant_folding and isinstance(operand, nodes.Constant):
-            return nodes.Constant(
-                value=self.UNARY_OP_FUNC_MAPPING[op](operand.number_value()),
-                parser_node=ctx
-            )
-
-        return nodes.UnaryExpression(
-            op=op,
-            operand=operand,
-            parser_node=ctx
-        )
-
-    def visitBinaryExpr(self, ctx: BosParser.BinaryExprContext):
-        op = nodes.ExpressionOp(ctx.op.type)
-        operand1 = self.visit(ctx.operand1)
-        operand2 = self.visit(ctx.operand2)
-
-        if (
-            self.enable_constant_folding
-            and isinstance(operand1, nodes.Constant)
-            and isinstance(operand2, nodes.Constant)
-        ):
-            return nodes.Constant(
-                value=self.BINARY_OP_FUNC_MAPPING[op](
-                    operand1.number_value(),
-                    operand2.number_value()
-                ),
-                parser_node=ctx
-            )
-
-        return nodes.BinaryExpression(
-            operand1=operand1,
-            op=op,
-            operand2=operand2,
-            parser_node=ctx
-        )
-
-    def visitExpressionList(self, ctx: BosParser.ExpressionListContext):
-        return [
-            self.visit(ctx.getChild(0)),
-            *self.visitTypedChildren(ctx, BosParser.CommaExpressionContext)
-        ]
-
-    def visitStatementBlock(self, ctx: BosParser.StatementBlockContext):
-        return nodes.StatementBlock(
-            statements=self.visitTypedChildren(ctx, BosParser.StatementContext),
-            parser_node=ctx
-        )
-
-    def visitKeywordStatementInner(self, ctx: ParserRuleContext):
-        keyword = nodes.Keyword(getattr(ctx, 'kw').type)
-        args = self._extract_args(ctx)
-
-        if (expr_list_ctx := ctx.getChild(0, BosParser.ExpressionListContext)) is not None:
-            args.extend(self.visit(expr_list_ctx))
-
-        statement_class = nodes.KeywordStatement
-        if keyword == nodes.Keyword.CALL_SCRIPT:
-            statement_class = nodes.CallStatement
-        elif keyword == nodes.Keyword.START_SCRIPT:
-            statement_class = nodes.StartStatement
-
-        # noinspection PyArgumentList
-        return statement_class(
-            keyword=keyword,
-            args=args,
-            parser_node=ctx
-        )
-
-    def _extract_args(self, ctx):
-        args = []
-        for attr in dir(ctx):
-            if attr.startswith('arg'):
-                arg_ctx = getattr(ctx, attr)
-                args.append(self.visit(arg_ctx) if arg_ctx is not None else None)
-        return args
-
-    def visitKeywordStatement(self, ctx: BosParser.KeywordStatementContext):
-        return self.visitKeywordStatementInner(ctx.getChild(0, ParserRuleContext))
-
-    def visitVarStatement(self, ctx: BosParser.VarStatementContext):
-        return nodes.VarStatement(
-            vars=self.visitTypedChildren(ctx, BosParser.VarNameContext),
-            parser_node=ctx
-        )
-
-    def visitIfStatement(self, ctx: BosParser.IfStatementContext):
-        else_ctx: BosParser.ElseBlockContext = ctx.elseBlock()
-        return nodes.IfStatement(
-            condition=self.visit(ctx.expression()),
-            then_block=self.visit(ctx.statementBlock()),
-            else_block=self.visit(else_ctx.statementBlock()) if else_ctx is not None else None,
-            parser_node=ctx
-        )
-
-    def visitWhileStatement(self, ctx: BosParser.WhileStatementContext):
-        return nodes.WhileStatement(
-            condition=self.visit(ctx.expression()),
-            block=self.visit(ctx.statementBlock()),
-            parser_node=ctx
-        )
-
-    # def visitForStatement(self, ctx: BosParser.ForStatementContext):
-    #     return nodes.ForStatement(
-    #         initialization=self.visit(ctx.expression(0)),
-    #         condition=self.visit(ctx.expression(1)),
-    #         increment=self.visit(ctx.expression(2)),
-    #         block=self.visit(ctx.statementBlock()),
-    #         parser_node=ctx
-    #     )
-
-    def visitAssignStatement(self, ctx: BosParser.AssignStatementContext):
-        inc_ctx: BosParser.IncStatementContext = ctx.incStatement()
-        if inc_ctx is not None:
-            var_name = self.visit(inc_ctx.varName())
-            return nodes.AssignStatement(
-                variable=var_name,
-                expression=nodes.BinaryExpression(
-                    operand1=nodes.VarNameTerm(var_name=var_name),
-                    op=nodes.ExpressionOp.ADD,
-                    operand2=nodes.Constant(value=1)
-                ),
-                parser_node=inc_ctx
-            )
-
-        dec_ctx: BosParser.DecStatementContext = ctx.decStatement()
-        if dec_ctx is not None:
-            var_name = self.visit(dec_ctx.varName())
-            return nodes.AssignStatement(
-                variable=self.visit(var_name),
-                expression=nodes.BinaryExpression(
-                    operand1=var_name,
-                    op=nodes.ExpressionOp.SUB,
-                    operand2=nodes.Constant(value=1)
-                ),
-                parser_node=dec_ctx
-            )
-
-        return nodes.AssignStatement(
-            variable=self.visit(ctx.varName()),
-            expression=self.visit(ctx.expression()),
-            parser_node=ctx
-        )
-
-    def visitReturnStatement(self, ctx: BosParser.ReturnStatementContext):
-        return nodes.ReturnStatement(
-            expression=self.visit(ctx.expression()) if ctx.expression() is not None else None,
-            parser_node=ctx
-        )
-
-    def visitEmptyStatement(self, ctx: BosParser.EmptyStatementContext):
-        return nodes.EmptyStatement(parser_node=ctx)
-
-    def visitFile(self, ctx: BosParser.FileContext):
-        return nodes.File(
-            declarations=self.visitTypedChildren(ctx, BosParser.DeclarationContext),
-            parser_node=ctx
-        )
-
-    def visitSpeedOrNow(self, ctx: BosParser.SpeedOrNowContext):
-        if expr := ctx.expression():
-            return self.visit(expr)
+    @_visit.register
+    def _visit_none_type(self, _: NoneType):
         return None
 
-    def visitGetTerm(self, ctx: BosParser.GetTermContext):
-        return nodes.GetTerm(
-            get_call=self.visit(ctx.getCall()),
-            parser_node=ctx
+    @_visit.register
+    def _visit_tree(self, tree: tree_sitter.Tree):
+        return self.visit_node_type(tree.root_node.type, tree.root_node)
+
+    @_visit.register
+    def _visit_list(self, items: list):
+        results = (self.visit(item) for item in items if item)
+        return [r for r in results if r]
+
+    @_visit.register
+    def _visit_node(self, node: tree_sitter.Node):
+        target_type = node.type
+        while (
+                target_type not in self._visit_node_type.dispatch_table
+                and target_type in self.sub_to_supertype_map
+                and self.sub_to_supertype_map[target_type] in self._visit_node_type.dispatch_table
+        ):
+            target_type = self.sub_to_supertype_map[target_type]
+
+        return self.visit_node_type(target_type, node)
+
+    def visit_node_type(self, node_type: str, node: tree_sitter.Node):
+        try:
+            return self._visit_node_type(node_type, node)
+        except Exception as e:
+            note = repr(node)
+            if len(note) > 100:
+                note = note[:100] + '...'
+            if note not in getattr(e, "__notes__", []):
+                e.add_note(repr(node))
+            raise
+
+    @ValueDispatch
+    def _visit_node_type(self, node_type: str, node: tree_sitter.Node):
+        if node.is_extra:
+            return None
+
+        if not node.is_named:
+            return node.text.decode('utf-8').strip()
+
+        if node.child_count == 0:
+            return ast_nodes.UndefNode(contents=node.text.decode('utf-8').strip(), name=node_type, parser_node=node)
+
+        result = []
+        for index, child in enumerate(node.children):
+            if field_name := node.field_name_for_child(index):
+                result.append({field_name: self.visit(child)})
+            elif child.is_named:
+                result.append(self.visit(child))
+
+        result = [r for r in result if r]
+
+        if len(result) == 0:
+            return None
+        elif len(result) == 1:
+            return ast_nodes.UndefNode(contents=result[0], name=node_type, parser_node=node)
+
+        if all(isinstance(r, dict) for r in result):
+            result = reduce(operator.__ior__, result, {})
+        return ast_nodes.UndefNode(contents=result, name=node_type, parser_node=node)
+
+    @_visit_node_type.register('constant')
+    def _visit_linear_constant(self, node: tree_sitter.Node):
+        return ast_nodes.Constant(node.text.decode('utf-8'), parser_node=node)
+
+    @_visit_node_type.register('axis')
+    def _visit_axis(self, node: tree_sitter.Node):
+        return ast_nodes.Axis(axis=ast_nodes.AxisEnum.from_str(node.text.decode('utf-8')), parser_node=node)
+
+    @_visit_node_type.register('parenthesized_expression')
+    def _visit_parenthesized_expression(self, node: tree_sitter.Node):
+        return self.visit(node.named_child(0))
+
+    @_visit_node_type.register('compound_statement')
+    def _visit_compound_statement(self, node: tree_sitter.Node):
+        return ast_nodes.StatementBlock(
+            block_level_nodes=self.visit(node.named_children),
+            parser_node=node
         )
 
-    def visitRandTerm(self, ctx: BosParser.RandTermContext):
-        return nodes.RandTerm(
-            min=self.visit(ctx.expression(0)),
-            max=self.visit(ctx.expression(1)),
-            parser_node=ctx
+    @_visit_node_type.register('func_name')
+    def _visit_func_name(self, node: tree_sitter.Node):
+        return ast_nodes.FuncName(name=node.text.decode('utf-8'), parser_node=node)
+
+    @_visit_node_type.register('function_declaration')
+    def _visit_function_declaration(self, node: tree_sitter.Node):
+        name_node = node.child_by_field_name('name')
+        args_nodes = node.children_by_field_name('arg')
+
+        return ast_nodes.FuncDeclaration(
+            name=self.visit(name_node),
+            args=[ast_nodes.ArgName(name=arg.text.decode('utf-8'), parser_node=arg) for arg in args_nodes],
+            block=self.visit(node.child_by_field_name('body')),
+            parser_node=node
         )
 
-    def visitVarNameTerm(self, ctx: BosParser.VarNameTermContext):
-        return nodes.VarNameTerm(
-            var_name=self.visit(ctx.varName()),
-            parser_node=ctx
+    @_visit_node_type.register('call_script_statement')
+    def _visit_call_script_statement(self, node: tree_sitter.Node):
+        func_name = self.visit(node.child_by_field_name('function'))
+        args = self.visit(node.child_by_field_name('arguments').named_children)
+
+        return ast_nodes.CallScriptStatement(
+            keyword=ast_nodes.Keyword.CALL_SCRIPT,
+            args=[func_name] + args,
+            parser_node=node
         )
 
-    def visitGetCall(self, ctx: BosParser.GetCallContext):
-        return nodes.GetCall(
-            value_idx=self.visit(ctx.value_idx),
-            args=self._extract_args(ctx),
-            parser_node=ctx
+    @_visit_node_type.register('start_script_statement')
+    def _visit_start_script_statement(self, node: tree_sitter.Node):
+        func_name = self.visit(node.child_by_field_name('function'))
+        args = self.visit(node.child_by_field_name('arguments').named_children)
+
+        return ast_nodes.StartScriptStatement(
+            keyword=ast_nodes.Keyword.START_SCRIPT,
+            args=[func_name] + args,
+            parser_node=node
         )
 
+    @_visit_node_type.register('keyword_statement')
+    def _visit_keyword_statement(self, node: tree_sitter.Node):
+        keyword = node.child_by_field_name('keyword').text.decode('utf-8')
+        if keyword not in self.keyword_map:
+            return None
 
-def main():
-    from bos_loader import BosLoader
-    loader = BosLoader(
-        'example_files/Units/armestor_clean.bos',
-        enable_constant_folding=True
-    )
-    loader.load_file()
+        args = self.visit(node.named_children)
 
-    ast: nodes.File = loader.ast_node_tree
-    print(
-        json.dumps(
-            ast.function_declarations[-1].block[-2].model_dump(),
-            # indent=2,
-            default=lambda x: vars(x) if isinstance(x, SimpleNamespace) else repr(x)
+        return ast_nodes.KeywordStatement(
+            keyword=self.keyword_map[keyword],
+            args=args,
+            parser_node=node,
         )
-    )
 
-    loader = BosLoader(
-        'example_files/Units/armestor.bos',
-        enable_constant_folding=False
-    )
-    loader.load_file()
+    @_visit_node_type.register('piece_name')
+    def _visit_piece_name(self, node: tree_sitter.Node):
+        return ast_nodes.PieceName(name=node.text.decode('utf-8'), parser_node=node)
 
-    ast: nodes.File = loader.ast_node_tree
-    print(
-        json.dumps(
-            ast.function_declarations[-1].block[-2].model_dump(),
-            # indent=2,
-            default=lambda x: vars(x) if isinstance(x, SimpleNamespace) else repr(x)
+    @_visit_node_type.register('piece_declaration')
+    def _visit_piece_declaration(self, node: tree_sitter.Node):
+        name_nodes = node.children_by_field_name('name')
+
+        return ast_nodes.PieceDeclaration(
+            names=[self.visit(name) for name in name_nodes],
+            parser_node=node
         )
-    )
 
+    @_visit_node_type.register('var_name')
+    def _visit_var_name(self, node: tree_sitter.Node):
+        return ast_nodes.VarName(name=node.text.decode('utf-8'), parser_node=node)
+
+    @_visit_node_type.register('static_var_declaration')
+    def _visit_static_var_declaration(self, node: tree_sitter.Node):
+        name_nodes = node.children_by_field_name('name')
+
+        return ast_nodes.StaticVarDeclaration(
+            names=[self.visit(name) for name in name_nodes],
+            parser_node=node
+        )
+
+    @_visit_node_type.register('unary_expression')
+    def _visit_unary_expression(self, node: tree_sitter.Node):
+        operand = self.visit(node.child_by_field_name('argument'))
+        op = self.operator_map[node.child_by_field_name('operator').type]
+
+        return ast_nodes.UnaryExpression(operand=operand, op=op, parser_node=node)
+
+    @_visit_node_type.register('binary_expression')
+    def _visit_binary_expression(self, node: tree_sitter.Node):
+        left, op, right = self._extract_binary_expr_parts(node)
+
+        return ast_nodes.BinaryExpression(
+            left=left,
+            op=op,
+            right=right,
+            parser_node=node
+        )
+
+    def _get_binary_expr_parts(self, node):
+        left = self.visit(node.child_by_field_name('left'))
+        return left
+
+    @_visit_node_type.register('source_file')
+    def _visit_source_file(self, node: tree_sitter.Node):
+        declarations = self.visit(node.named_children)
+        return ast_nodes.File(top_level_nodes=declarations, parser_node=node)
+
+    @_visit_node_type.register('if_statement')
+    def _visit_if_statement(self, node: tree_sitter.Node):
+        condition = self.visit(node.child_by_field_name('condition'))
+        then_block = self.visit(node.child_by_field_name('then'))
+        if else_node := node.child_by_field_name('else'):
+            else_block = self.visit(else_node)
+        else:
+            else_block = None
+
+        return ast_nodes.IfStatement(
+            condition=condition,
+            then_block=then_block,
+            else_block=else_block,
+            parser_node=node
+        )
+
+    @_visit_node_type.register('while_statement')
+    def _visit_while_statement(self, node: tree_sitter.Node):
+        condition = self.visit(node.child_by_field_name('condition'))
+        block = self.visit(node.child_by_field_name('body'))
+
+        return ast_nodes.WhileStatement(
+            condition=condition,
+            block=block,
+            parser_node=node
+        )
+
+    @_visit_node_type.register('get_term')
+    def _visit_get_term(self, node: tree_sitter.Node):
+        return ast_nodes.GetTerm(get_call=self.visit(node.named_child(0)), parser_node=node)
+
+    @_visit_node_type.register('get_call')
+    def _visit_get_call(self, node: tree_sitter.Node):
+        value_index = self.visit(node.child_by_field_name('value_index'))
+        args = self.visit(node.children_by_field_name('arg'))
+
+        return ast_nodes.GetCall(
+            value_idx=value_index,
+            args=args,
+            parser_node=node
+        )
+
+    @_visit_node_type.register('rand_call')
+    def _visit_rand_call(self, node: tree_sitter.Node):
+        return ast_nodes.RandTerm(
+            min=self.visit(node.child_by_field_name('lower_bound')),
+            max=self.visit(node.child_by_field_name('upper_bound')),
+        )
+
+    @_visit_node_type.register('var_name_term')
+    def _visit_var_name_term(self, node: tree_sitter.Node):
+        return ast_nodes.VarNameTerm(
+            var_name=ast_nodes.VarName(name=node.text.decode('utf-8'), parser_node=node),
+            parser_node=node
+        )
+
+    @_visit_node_type.register('assign_statement')
+    def _visit_assign_statement(self, node: tree_sitter.Node):
+        var_name_node = node.child_by_field_name('name')
+        if not var_name_node:
+            return self.visit(node.named_child(0))
+
+        var_name = self.visit(var_name_node)
+        value = self.visit(node.child_by_field_name('value'))
+
+        return ast_nodes.AssignStatement(
+            variable=var_name,
+            expression=value,
+            parser_node=node
+        )
+
+    @_visit_node_type.register('increment_statement')
+    def _visit_increment_statement(self, node: tree_sitter.Node):
+        var_name = self.visit(node.child_by_field_name('name'))
+
+        return ast_nodes.AssignStatement(
+            variable=var_name,
+            expression=ast_nodes.BinaryExpression(
+                left=ast_nodes.VarNameTerm(var_name=var_name),
+                op=ast_nodes.ExpressionOperator.ADD,
+                right=ast_nodes.Constant(1)
+            ),
+            parser_node=node
+        )
+
+    @_visit_node_type.register('decrement_statement')
+    def _visit_decrement_statement(self, node: tree_sitter.Node):
+        var_name = self.visit(node.child_by_field_name('name'))
+
+        return ast_nodes.AssignStatement(
+            variable=var_name,
+            expression=ast_nodes.BinaryExpression(
+                left=ast_nodes.VarNameTerm(var_name=var_name),
+                op=ast_nodes.ExpressionOperator.MINUS,
+                right=ast_nodes.Constant(1)
+            ),
+            parser_node=node
+        )
+
+    @_visit_node_type.register('var_statement')
+    def _visit_var_statement(self, node: tree_sitter.Node):
+        return ast_nodes.VarStatement(
+            vars=self.visit(node.named_children),
+            parser_node=node
+        )
+
+    @_visit_node_type.register('return_statement')
+    def _visit_return_statement(self, node: tree_sitter.Node):
+        if node.named_child_count == 0:
+            return ast_nodes.ReturnStatement(expression=None, parser_node=node)
+
+        return ast_nodes.ReturnStatement(
+            expression=self.visit(node.named_child(0)),
+            parser_node=node
+        )
+
+    @_visit_node_type.register('string_literal')
+    def _visit_string_literal(self, node: tree_sitter.Node):
+        return ast_nodes.StringLiteral(
+            string=node.named_child(0).text.decode('utf-8'),
+            parser_node=node
+        )
+
+    @_visit_node_type.register('define_name')
+    def _visit_define_name(self, node: tree_sitter.Node):
+        return preproc_nodes.DefineName(
+            name=node.text.decode('utf-8'),
+            parser_node=node
+        )
+
+    @_visit_node_type.register('preproc_arg')
+    def _visit_preproc_arg(self, node: tree_sitter.Node):
+        return preproc_nodes.PreprocArg(
+            string=node.text.decode('utf-8').replace('\r', '').replace('\\', ''),
+            parser_node=node
+        )
+
+    @_visit_node_type.register('preproc_include')
+    def _visit_preproc_include(self, node: tree_sitter.Node):
+        return preproc_nodes.PreprocInclude(
+            path=self.visit(node.named_child(0)),
+            parser_node=node
+        )
+
+    @_visit_node_type.register('preproc_def')
+    def _visit_preproc_def(self, node: tree_sitter.Node):
+        return preproc_nodes.PreprocDefine(
+            name=self.visit(node.child_by_field_name('name')),
+            value=self.visit(node.child_by_field_name('value')),
+            parser_node=node
+        )
+
+    @_visit_node_type.register('preproc_function_def')
+    def _visit_preproc_function_def(self, node: tree_sitter.Node):
+        return preproc_nodes.PreprocFunctionDefine(
+            name=self.visit(node.child_by_field_name('name')),
+            parameters=self.visit(node.child_by_field_name('parameters')),
+            value=self.visit(node.child_by_field_name('value')),
+            parser_node=node
+        )
+
+    @_visit_node_type.register('preproc_undef')
+    def _visit_preproc_undef(self, node: tree_sitter.Node):
+        return preproc_nodes.PreprocUndef(
+            name=self.visit(node.child_by_field_name('name')),
+            parser_node=node
+        )
+
+    @_visit_node_type.register('system_lib_string')
+    def _visit_system_lib_string(self, node: tree_sitter.Node):
+        return preproc_nodes.SystemLibString(
+            string=node.named_child(0).text.decode('utf-8'),
+            parser_node=node
+        )
+
+    @_visit_node_type.register('preproc_params')
+    def _visit_preproc_params(self, node: tree_sitter.Node):
+        return [
+            ast_nodes.NameNode(
+                name=child.text.decode('utf-8'),
+                parser_node=child,
+            ) for child in node.named_children
+        ]
+
+    @_visit_node_type.register('preproc_argument_list')
+    def _visit_preproc_argument_list(self, node: tree_sitter.Node):
+        return self.visit(node.named_children)
+
+    @_visit_node_type.register('preproc_directive')
+    def _visit_preproc_directive(self, node: tree_sitter.Node):
+        return preproc_nodes.PreprocDirective(
+            directive=self.visit(node.child_by_field_name('directive')),
+            argument=self.visit(node.child_by_field_name('argument')),
+            parser_node=node
+        )
+
+    @_visit_node_type.register('preproc_defined')
+    def _visit_preproc_defined(self, node: tree_sitter.Node):
+        return preproc_nodes.PreprocDefinedTerm(
+            name=self.visit(node.named_child(0)),
+            parser_node=node
+        )
+
+    @_visit_node_type.register('preproc_if')
+    @_visit_node_type.register('preproc_elif')
+    def _visit_preproc_if(self, node: tree_sitter.Node):
+        return preproc_nodes.PreprocIf(
+            condition=self.visit(node.child_by_field_name('condition')),
+            body=self.visit(node.children_by_field_name('body')),
+            alternative=self.visit(node.child_by_field_name('alternative')),
+            parser_node=node
+        )
+
+    @_visit_node_type.register('preproc_ifdef')
+    @_visit_node_type.register('preproc_elifdef')
+    def _visit_preproc_ifdef(self, node: tree_sitter.Node):
+
+        cond_child = node.child_by_field_name('condition')
+
+        condition = preproc_nodes.PreprocDefinedTerm(
+            name=self.visit(node.child_by_field_name('name')),
+            parser_node=cond_child
+        )
+
+        if 'ifndef' in node.child(0).type:
+            condition = preproc_nodes.PreprocUnaryExpression(
+                operator=ast_nodes.ExpressionOperator.LOGICAL_NOT,
+                operand=condition,
+                parser_node=cond_child
+            )
+
+        body = self.visit(node.children_by_field_name('body'))
+        alternative = self.visit(node.child_by_field_name('alternative'))
+
+        return preproc_nodes.PreprocIf(
+            condition=condition,
+            body=body,
+            alternative=alternative,
+            parser_node=node
+        )
+
+    @_visit_node_type.register('preproc_else')
+    def _visit_preproc_else(self, node: tree_sitter.Node):
+        return self.visit(node.children_by_field_name('body'))
+
+    @_visit_node_type.register('preproc_parenthesized_expression')
+    def _visit_preproc_parenthesized_expression(self, node: tree_sitter.Node):
+        return self.visit(node.named_child(0))
+
+    @_visit_node_type.register('preproc_binary_expression')
+    def _visit_preproc_binary_expression(self, node: tree_sitter.Node):
+        left, op, right = self._extract_binary_expr_parts(node)
+
+        return preproc_nodes.PreprocBinaryExpression(
+            left=left,
+            operator=op,
+            right=right,
+            parser_node=node
+        )
+
+    def _extract_binary_expr_parts(self, node):
+        left = self.visit(node.child_by_field_name('left'))
+        op = self.operator_map.get(node.child_by_field_name('operator').type, None)
+        right = self.visit(node.child_by_field_name('right'))
+        if op is None:
+            op_text = node.child_by_field_name('operator').type
+            warnings.warn(f'Could not find operator for "{op_text}"', UserWarning)
+        return left, op, right
+
+    @_visit_node_type.register('preproc_unary_expression')
+    def _visit_preproc_unary_expression(self, node: tree_sitter.Node):
+        operand = self.visit(node.child_by_field_name('argument'))
+        operator = self.operator_map[node.child_by_field_name('operator').type]
+
+        return preproc_nodes.PreprocUnaryExpression(
+            operand=operand,
+            operator=operator,
+            parser_node=node
+        )
+
+    @_visit_node_type.register('preproc_call_expression')
+    def _visit_preproc_call_expression(self, node: tree_sitter.Node):
+        function = self.visit(node.child_by_field_name('function'))
+        args = self.visit(node.children_by_field_name('arg'))
+
+        return preproc_nodes.PreprocCallExpression(
+            function=function,
+            arguments=args,
+            parser_node=node
+        )
+
+    @_visit_node_type.register('macro_call_expression')
+    def _visit_macro_call_expression(self, node: tree_sitter.Node):
+        return ast_nodes.MacroCallExpression(
+            function=self.visit(node.child_by_field_name('function')),
+            arguments=self.visit(node.children_by_field_name('arg')),
+            parser_node=node
+        )
+
+    @_visit_node_type.register('macro_call_statement')
+    def _visit_macro_call_statement(self, node: tree_sitter.Node):
+        return ast_nodes.MacroCallStatement(
+            macro_call=self.visit(node.named_child(0)),
+            parser_node=node
+        )
+
+    @_visit_node_type.register('macro_name_statement')
+    def _visit_macro_name_statement(self, node: tree_sitter.Node):
+        return ast_nodes.MacroNameStatement(
+            macro_name=self.visit(node.named_child(0)),
+            parser_node=node
+        )
+
+    @_visit_node_type.register('preproc_line')
+    def _visit_preproc_line(self, node: tree_sitter.Node):
+        filename_node = node.child_by_field_name('filename')
+        filename = None
+        if filename_node:
+            filename = filename_node.text.decode('utf-8')
+
+        return preproc_nodes.PreprocLine(
+            lineno=int(node.child_by_field_name('lineno').text.decode('utf-8')),
+            filename=filename,
+            parser_node=node
+        )
 
 if __name__ == '__main__':
+    def main():
+        # check all nodes in the tree-sitter bos grammar
+        visitor = TreeSitterBosVisitor()
+        has_handler = set()
+        no_handler = set()
+        for node_kind_id in range(_bos_lang.node_kind_count):
+            node_type = _bos_lang.node_kind_for_id(node_kind_id)
+            if not _bos_lang.node_kind_is_visible(node_kind_id) or not _bos_lang.node_kind_is_named(node_kind_id):
+                continue
+            if node_type in visitor._visit_node_type.dispatch_table:
+                has_handler.add(node_type)
+            else:
+                no_handler.add(node_type)
+        print(f'\n\nNodes with handlers: {len(has_handler)}')
+        for node_type in sorted(has_handler):
+            print(node_type)
+
+        print(f'\n\nNodes without handlers: {len(no_handler)}')
+        for node_type in sorted(no_handler):
+            print(node_type)
+
     main()
