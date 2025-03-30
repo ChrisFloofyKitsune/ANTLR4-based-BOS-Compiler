@@ -42,7 +42,8 @@ TA_ANG_2_RAD: Final[Radians] = PI / COB_SCALE_HALF
 floor = pyglm.floor
 abs = pyglm.abs
 sign = pyglm.sign
-modf = pyglm.modf()
+modf = pyglm.modf
+normalize = pyglm.normalize
 
 
 class Axis(IntEnum):

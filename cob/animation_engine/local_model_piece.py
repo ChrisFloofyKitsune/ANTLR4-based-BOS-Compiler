@@ -45,3 +45,7 @@ class LocalModelPiece(ABC):
     @abstractmethod
     def get_original_offset(self) -> float3:
         pass
+
+    @abstractmethod
+    def set_script_visible(self, visible) -> None:
+        pass

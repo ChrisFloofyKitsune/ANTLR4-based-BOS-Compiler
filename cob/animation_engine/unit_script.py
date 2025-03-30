@@ -1,6 +1,7 @@
+import inspect
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
-from typing import ClassVar
+from typing import ClassVar, Final, cast
 
 import reactivex
 
@@ -10,7 +11,7 @@ from cob.animation_engine.math import Radians
 from cob.animation_engine.types import (
     AnimContainerType, AnimType, PieceIndex, AnimInfo,
     UnitId, ValueIndex, WeaponIndex, FunctionIndex, WeaponDefId,
-    PieceIndex_NONE, ScriptPieceIndex, ModelPieceIndex, RadiansPerFrame
+    PieceIndex_NONE, ScriptPieceIndex, ModelPieceIndex, RadiansPerFrame, TickAnimFunc
 )
 from cob.animation_engine.unit import Unit
 
@@ -88,11 +89,11 @@ class UnitScript(ABC):
         cur = math.clamp_rad(cur + (speed / divisor))
         return cur, speed, (speed == dest == 0)
 
-    def _find_anim(self, anim_type: AnimType, piece: PieceIndex, axis: math.Axis) -> AnimInfo | None:
+    def _find_anim(self, anim_type: AnimType, piece: ScriptPieceIndex, axis: math.Axis) -> AnimInfo | None:
         return next((ai for ai in self._anims[anim_type] if ai.piece == piece and ai.axis == axis), None)
 
     def _remove_anim(self, anim_type: AnimType, anim_info: AnimInfo) -> None:
-        if not anim_info in self._anims[anim_type]:
+        if anim_info not in self._anims[anim_type]:
             return
 
         # We need to unblock threads waiting on this animation, otherwise they will be lost in the void
@@ -110,8 +111,7 @@ class UnitScript(ABC):
 
     def _add_anim(self, anim_type: AnimType, piece: ScriptPieceIndex, axis: math.Axis, speed: float, dest: float,
                   accel: RadiansPerFrame) -> None:
-        if not self.piece_exists(piece):
-            self._show_unit_script_error('[UnitScript.add_anim] invalid script piece index')
+        if not self.piece_exists_guard(piece):
             return
 
         dest_final = 0.0
@@ -161,6 +161,13 @@ class UnitScript(ABC):
     def piece_exists(self, script_piece_num: ScriptPieceIndex) -> bool:
         return script_piece_num < len(self.pieces) and self.pieces[script_piece_num] is not None
 
+    def piece_exists_guard(self, script_piece_num: ScriptPieceIndex) -> bool:
+        if not self.piece_exists(script_piece_num):
+            func_name = inspect.currentframe().f_back.f_code.co_qualname
+            self._show_unit_script_error(f'[{func_name}] invalid script piece index')
+            return False
+        return True
+
     def get_script_local_model_piece(self, script_piece_num: ScriptPieceIndex) -> LocalModelPiece:
         assert self.piece_exists(script_piece_num)
         return self.pieces[script_piece_num]
@@ -190,9 +197,9 @@ class UnitScript(ABC):
             return math.matrix44()
         return self.get_script_local_model_piece(piece).get_model_space_matrix()
 
-    def get_emit_dir_pos(self, piece: ScriptPieceIndex) -> tuple[math.float3, math.float3]:
-        if not self.piece_exists(piece):
-            return math.float3(), math.float3()
+    def get_emit_dir_pos(self, piece: ScriptPieceIndex) -> tuple[math.float3, math.float3] | tuple[None, None]:
+        if not self.piece_exists_guard(piece):
+            return None, None
         return self.get_script_local_model_piece(piece).get_emit_dir_pos()
 
     def __init__(self, unit: Unit):
@@ -217,14 +224,62 @@ class UnitScript(ABC):
     def get_unit(self) -> Unit:
         return self._unit
 
-    def tick_all_anims(self, tick_rate: int) -> None:
+    @staticmethod
+    def tick_move_anim(tick_rate, lmp: LocalModelPiece, ai: AnimInfo) -> bool:
+        pos: math.float3 = lmp.get_position()
+        pos[ai.axis], done = UnitScript._move_toward(pos[ai.axis], ai.dest, ai.speed / tick_rate)
+        lmp.set_position(pos)
+        return done
+
+    @staticmethod
+    def tick_turn_anim(tick_rate: int, lmp: LocalModelPiece, ai: AnimInfo) -> bool:
+        rot: math.Radians3 = lmp.get_rotation()
+        rot[ai.axis] = math.clamp_rad(rot[ai.axis])
+        rot[ai.axis], done = UnitScript._turn_toward(rot[ai.axis], ai.dest, ai.speed / tick_rate)
+        lmp.set_rotation(rot)
+        return done
+
+    @staticmethod
+    def tick_spin_anim(tick_rate: int, lmp: LocalModelPiece, ai: AnimInfo) -> bool:
+        rot: math.Radians3 = lmp.get_rotation()
+        rot[ai.axis] = math.clamp_rad(rot[ai.axis])
+        rot[ai.axis], ai.speed, done = UnitScript._do_spin(rot[ai.axis], ai.dest, ai.speed, ai.accel, tick_rate)
+        lmp.set_rotation(rot)
+        return done
+
+    __TICK_ANIM_FUNCS: Final[dict[AnimType, TickAnimFunc]] = {
+        AnimType.ATurn: tick_turn_anim,
+        AnimType.ASpin: tick_spin_anim,
+        AnimType.AMove: tick_move_anim,
+    }
+
+    def tick_all_anims(self, delta_time: int) -> None:
         """
         The multithreaded first half of the UnitScript.Tick function first does the heavy lifting of calculating all
         new piece positions according to the animations
 
-        :param tick_rate: delta time to update
+        :param delta_time: delta time to update
         """
-        pass
+        tick_rate: int = 1000 // delta_time
+        for anim_type in (AnimType.ATurn, AnimType.ASpin, AnimType.AMove):
+            current_anims = self._anims[anim_type]
+            current_func = self.__TICK_ANIM_FUNCS[anim_type]
+            current_done_anims = self._done_anims[anim_type]
+
+            idx = 0
+            while idx < len(current_anims):
+                anim_info = current_anims[idx]
+                lmp = self.pieces[anim_info.piece]
+
+                anim_info.done = current_func(tick_rate, lmp, anim_info)
+                if anim_info.done:
+                    if anim_info.has_waiting:
+                        current_done_anims.append(anim_info)
+
+                    idx = current_anims.index(anim_info)
+                    current_anims[idx] = self._anims[anim_type].pop()
+                    continue
+            idx += 1
 
     def tick_anim_finished(self, tick_rate: int) -> bool:
         """
@@ -239,88 +294,189 @@ class UnitScript(ABC):
         :return: true if there are still active animations
         """
 
-        pass
+        # Tell listeners to unblock, and remove finished animations from the unit/script.
+        for anim_type in (AnimType.ATurn, AnimType.ASpin, AnimType.AMove):
+            current_done_anims = self._done_anims[anim_type]
+            for anim_info in current_done_anims:
+                self.anim_finished(anim_type, anim_info.piece, anim_info.axis)
+            current_done_anims.clear()
 
-    def tick_move_anim(self, tick_rate, lmp: LocalModelPiece, ai: AnimInfo) -> bool:
-        pos: math.float3 = lmp.get_position()
-        pos[ai.axis], done = self._move_toward(pos[ai.axis], ai.dest, ai.speed / tick_rate)
+        return self.have_animations()
+
+    def spin(self, piece: ScriptPieceIndex, axis: math.Axis, speed: float, accel: float) -> None:
+        anim_info = self._find_anim(AnimType.ASpin, piece, axis)
+
+        # alter existing animation
+        if anim_info is not None:
+            anim_info.dest = speed
+
+            if accel > 0.0:
+                anim_info.accel = accel
+            else:
+                anim_info.speed = speed
+                anim_info.accel = 0.0
+            return
+
+        # create a new animation
+        if accel <= 0.0:
+            self._add_anim(AnimType.ASpin, piece, axis, speed, speed, 0.0)
+        else:
+            self._add_anim(AnimType.ASpin, piece, axis, 0.0, speed, accel)
+
+    def stop_spin(self, piece: ScriptPieceIndex, axis: math.Axis, decel: float) -> None:
+        anim_info = self._find_anim(AnimType.ASpin, piece, axis)
+
+        if anim_info is None:
+            return
+
+        if decel <= 0.0:
+            # instant stop
+            self._remove_anim(AnimType.ASpin, anim_info)
+        else:
+            # decelerate to 0
+            anim_info.dest = 0.0
+            anim_info.accel = decel
+
+    def turn(self, piece: ScriptPieceIndex, axis: math.Axis, speed: float, dest: float) -> None:
+        self._add_anim(AnimType.ATurn, piece, axis, speed, math.clamp_rad(dest), 0.0)
+
+    def move(self, piece: ScriptPieceIndex, axis: math.Axis, speed: float, dest: float) -> None:
+        self._add_anim(AnimType.AMove, piece, axis, math.abs(speed), dest, 0.0)
+
+    def move_now(self, piece: ScriptPieceIndex, axis: math.Axis, dest: float) -> None:
+        if not self.piece_exists_guard(piece):
+            return
+
+        lmp = self.pieces[piece]
+
+        pos = lmp.get_position()
+        offset = lmp.get_original_offset()
+
+        pos[axis] = offset[axis] + dest
+
         lmp.set_position(pos)
-        return done
 
-    def tick_turn_anim(self, tick_rate: int, lmp: LocalModelPiece, ai: AnimInfo) -> bool:
-        rot: math.Radians3 = lmp.get_rotation()
-        rot[ai.axis] = math.clamp_rad(rot[ai.axis])
-        rot[ai.axis], done = self._turn_toward(rot[ai.axis], ai.dest, ai.speed / tick_rate)
+    def turn_now(self, piece: ScriptPieceIndex, axis: math.Axis, dest: Radians) -> None:
+        if not self.piece_exists_guard(piece):
+            return
+
+        lmp = self.pieces[piece]
+
+        rot = lmp.get_rotation()
+        rot[axis] = math.clamp_rad(dest)
+
         lmp.set_rotation(rot)
-        return done
 
-    def tick_spin_anim(self, tick_rate: int, lmp: LocalModelPiece, ai: AnimInfo) -> bool:
-        rot: math.Radians3 = lmp.get_rotation()
-        rot[ai.axis] = math.clamp_rad(rot[ai.axis])
-        rot[ai.axis], ai.speed, done = self._do_spin(rot[ai.axis], ai.dest, ai.speed, ai.accel, tick_rate)
-        lmp.set_rotation(rot)
-        return done
+    def needs_wait(self, anim_type: AnimType, piece: ScriptPieceIndex, axis: math.Axis) -> bool:
+        anim_info = self._find_anim(anim_type, piece, axis)
+        if anim_info is None:
+            return False
 
-    def spin(self, piece: PieceIndex, axis: math.Axis, speed: float, accel: float) -> None:
-        pass
+        if anim_info.done:
+            return False
 
-    def stop_spin(self, piece: PieceIndex, axis: math.Axis, decel: float) -> None:
-        pass
+        anim_info.has_waiting = True
+        return True
 
-    def turn(self, piece: PieceIndex, axis: math.Axis, speed: float, dest: float) -> None:
-        pass
+    def set_visibility(self, piece: ScriptPieceIndex, visible: bool) -> None:
+        if not self.piece_exists_guard(piece):
+            return
+        self.pieces[piece].set_script_visible(visible)
 
-    def move(self, piece: PieceIndex, axis: math.Axis, speed: float, dest: float) -> None:
-        pass
+    def emit_sfx(self, sfx_type: int, sfx_piece: ScriptPieceIndex) -> bool:
+        if not self.piece_exists_guard(sfx_piece):
+            return False
 
-    def move_now(self, piece: PieceIndex, axis: math.Axis, dest: float) -> None:
-        pass
-
-    def turm_now(self, piece: PieceIndex, axis: math.Axis, dest: float) -> None:
-        pass
-
-    def needs_wait(self, anim_type: AnimType, piece: PieceIndex, axis: math.Axis) -> bool:
-        pass
-
-    def set_visibility(self, piece: PieceIndex, visible: bool) -> None:
-        pass
-
-    def emit_sfx(self, sfx_type: int, sfx_piece: PieceIndex) -> bool:
-        pass
+        # guaranteed to NOT return (None, None) as the piece exists
+        rel_dir, rel_pos = cast(tuple[math.float3, math.float3], self.get_emit_dir_pos(sfx_piece))
+        return self.emit_rel_sfx(sfx_type, rel_pos, math.normalize(rel_dir))
 
     def emit_rel_sfx(self, sfx_type: int, rel_pos: math.float3, rel_dir: math.float3) -> bool:
-        pass
+        obj_space_pos = self._unit.get_object_space_pos(rel_pos)
+        obj_space_dir = self._unit.get_object_space_vec(rel_dir)
+        return self.emit_abs_sfx(sfx_type, obj_space_pos, obj_space_dir, rel_dir)
 
-    def emit_abs_sfx(self, sfx_type: int, abs_pos: math.float3, abs_dir: math.float3,
-                     rel_dir: math.float3 = math.FORWARD_VECTOR) -> bool:
-        pass
+    emit_sfx_subject: ClassVar[reactivex.Subject] = reactivex.Subject()
 
-    def attach_unit(self, piece: PieceIndex, unit: UnitId) -> None:
-        pass
+    def emit_abs_sfx(
+            self, sfx_type: int,
+            abs_pos: math.float3, abs_dir: math.float3,
+            rel_dir: math.float3 = math.FORWARD_VECTOR
+    ) -> bool:
+        # renderer specific, leave a hook for something else to take care of it
+        try:
+            self.emit_sfx_subject.on_next((sfx_type, abs_pos, abs_dir, rel_dir))
+        except Exception as ex:
+            self._show_unit_script_error(f'emit_sfx handler threw an exception: {str(ex)}')
+            return False
+        return True
+
+    def attach_unit(self, piece: ScriptPieceIndex, unit: UnitId) -> None:
+        # -1 here means that the unit should be completely hidden
+        if not (piece == -1 or self.piece_exists_guard(piece)):
+            return
+        return self._attach_unit_impl(piece, unit)
+
+    @abstractmethod
+    def _attach_unit_impl(self, piece: ScriptPieceIndex, unit: UnitId) -> None:
+        raise NotImplementedError
 
     def drop_unit(self, unit: UnitId) -> None:
-        pass
+        self._drop_unit_impl(unit)
 
-    def explode(self, piece: PieceIndex, flags: int) -> None:
-        pass
+    @abstractmethod
+    def _drop_unit_impl(self, unit: UnitId) -> None:
+        raise NotImplementedError
 
-    def shatter(self, piece: PieceIndex, pos: math.float3, speed: math.float3) -> None:
-        pass
+    def explode(self, piece: ScriptPieceIndex, flags: int) -> None:
+        if not self.piece_exists_guard(piece):
+            return
+        self._explode_impl(piece, flags)
 
-    def show_flare(self, piece: PieceIndex) -> None:
-        pass
+    @abstractmethod
+    def _explode_impl(self, piece: ScriptPieceIndex, flags: int) -> None:
+        raise NotImplementedError
+
+    def shatter(self, piece: ScriptPieceIndex, pos: math.float3, speed: math.float3) -> None:
+        if not self.piece_exists_guard(piece):
+            return
+        self._shatter_impl(piece, pos, speed)
+
+    @abstractmethod
+    def _shatter_impl(self, piece: ScriptPieceIndex, pos: math.float3, speed: math.float3) -> None:
+        raise NotImplementedError
+
+    def show_flare(self, piece: ScriptPieceIndex) -> None:
+        if not self.piece_exists_guard(piece):
+            return
+        self._show_flare_impl(piece)
+
+    @abstractmethod
+    def _show_flare_impl(self, piece: ScriptPieceIndex) -> None:
+        raise NotImplementedError
 
     def get_unit_val(self, val: ValueIndex, p1: int, p2: int, p3: int, p4: int) -> int:
-        pass
+        return self._get_unit_val_impl(val, p1, p2, p3, p4)
+
+    @abstractmethod
+    def _get_unit_val_impl(self, val: ValueIndex, p1: int, p2: int, p3: int, p4: int) -> int:
+        raise NotImplementedError
 
     def set_unit_val(self, val: ValueIndex, param: int):
-        pass
+        self._set_unit_val_impl(val, param)
 
-    def is_in_animation(self, anim_type: AnimType, piece: PieceIndex, axis: math.Axis) -> bool:
+    @abstractmethod
+    def _set_unit_val_impl(self, val: ValueIndex, param: int) -> None:
+        raise NotImplementedError
+
+    def is_in_animation(self, anim_type: AnimType, piece: ScriptPieceIndex, axis: math.Axis) -> bool:
         return self._find_anim(anim_type, piece, axis) is not None
 
     def have_animations(self) -> bool:
-        return any(self._anims[anim_type] for anim_type in (AnimType.ATurn, AnimType.ASpin, AnimType.AMove))
+        return any(
+            len(self._anims[anim_type]) > 0
+            for anim_type in (AnimType.ATurn, AnimType.ASpin, AnimType.AMove)
+        )
 
     def has_set_sfx_occupy(self) -> bool:
         return self._has_set_sfx_occupy

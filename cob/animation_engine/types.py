@@ -1,4 +1,5 @@
 from collections.abc import Callable
+from dataclasses import dataclass
 from enum import IntEnum
 from typing import NewType, TypeAlias
 
@@ -28,10 +29,10 @@ class AnimType(IntEnum):
     ASpin = 1
     AMove = 2
 
-
+@dataclass
 class AnimInfo:
     axis: Axis = 0
-    piece: PieceIndex = 0
+    piece: ScriptPieceIndex = 0
     speed: float | Radians = 0
     dest: float | Radians = 0
     accel: RadiansPerFrame = 0
