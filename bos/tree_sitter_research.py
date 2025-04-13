@@ -11,7 +11,7 @@ import tree_sitter_bos
 
 from bos.bos_loader import BosLoader
 from bos.bos_preprocessor import BosPreprocessor
-from bos.ts_ast_visitor import TreeSitterBosVisitor
+from bos.ast_visitor import TreeSitterBosVisitor
 from cob.compiler.cob_compiler import CobCompiler
 from code_error import CodeError
 
@@ -42,8 +42,8 @@ def walk_files(path: str | os.PathLike[str], extensions: list[str]):
                 yield Path(dirpath).joinpath(file)
 
 def process_file(file: Path, parser: tree_sitter.Parser, parse_time_stats: list = None):
-    if 'array' in str(file):
-        # these things are cursed as fuck
+    if 'array_0' in str(file):
+        # the array_0X.h files are cursed as fuck
         return False
 
     # print('Processing', file)
@@ -51,12 +51,6 @@ def process_file(file: Path, parser: tree_sitter.Parser, parse_time_stats: list 
     parser.reset()
     with open(file, 'rt', encoding='utf-8') as f:
         file_text = f.read()
-
-    # bos_preprocessor = BosPreprocessor()
-    # processed, source, chunks = bos_preprocessor.process_file(file_text, file, ['bos/example_files'])
-    #
-    # preproc_time = time.perf_counter()
-    # print('Preprocessing time:', preproc_time - start_time)
 
     tree = parser.parse(file_text.encode('utf-8'))
     time_taken = time.perf_counter() - start_time
@@ -83,12 +77,12 @@ def check_errors(tree: tree_sitter.Tree, file: Path):
     missing_query = tree_sitter.Query(tree.language, "(MISSING) @missing")
     missing_query_cursor = tree_sitter.QueryCursor(missing_query)
 
-    # if missing := missing_query_cursor.captures(tree.root_node):
-    #     print('\n\nMissing found in', file)
-    #     for miss in missing['missing']:
-    #         print(miss.range)
-    #         display_node(miss.parent)
-    #     return True
+    if missing := missing_query_cursor.captures(tree.root_node):
+        print('\n\nMissing found in', file)
+        for miss in missing['missing']:
+            print(miss.range)
+            display_node(miss.parent)
+        return True
 
     return False
 
@@ -107,20 +101,6 @@ def display_node(node: tree_sitter.Node, depth=0):
                 print('  ' * depth, child.text.decode('utf-8'))
             else:
                 print('  ' * depth, '"', child.text.decode('utf-8'), '"')
-    # print(error.parent.text.decode('utf-8'))
-
-
-    # parent = error.parent
-    #
-    # parent_text = parent.text.decode('utf-8')
-    # start_line = parent.start_point.row
-    # end_line = parent.end_point.row
-    #
-    # error_lines = error.text.decode('utf-8').splitlines()
-    # for line, line_no in zip(parent_text.splitlines(), range(start_line, end_line + 1)):
-    #     print(f'#{line_no:04d}: {line}')
-    #     if error.start_point.row >= line_no <= error.end_point.row:
-    #         print(error_lines)
 
 def main2():
     bos_lang = tree_sitter.Language(tree_sitter_bos.language())

@@ -22,27 +22,22 @@ log = logging.getLogger(__name__)
 
 class NodeNameRegistry(NameRegistry[nodes.NameNode]):
     def on_name_missing(self, name):
-        raise CodeError(
-            f'name "{str(name)}" has not been defined',
-            CodeLocation.from_parser_node(name.parser_node)
-        )
+        raise CodeError(f'name "{str(name)}" has not been defined', CodeLocation.from_parser_node(name.parser_node))
 
     def on_name_collision(self, name: nodes.NameNode, name_type: NameType, existing_type: NameType):
-        if (
-                name_type == existing_type
-                and name_type in (NameType.STATIC, NameType.PIECE)
-        ):
+        if name_type == existing_type and name_type in (NameType.STATIC, NameType.PIECE):
             log.warning(
                 'Skipping duplicate declaration of global name %s "%s". Location: %s',
-                name_type.description, str(name),
-                CodeLocation.from_parser_node(name.parser_node)
+                name_type.description,
+                str(name),
+                CodeLocation.from_parser_node(name.parser_node),
             )
             return
 
         raise CodeError(
             f'invalid declaration of {name_type.description} "{str(name)}", '
-            f'name is already being used by a {existing_type.description} declaration',
-            CodeLocation.from_parser_node(name.parser_node)
+            f"name is already being used by a {existing_type.description} declaration",
+            CodeLocation.from_parser_node(name.parser_node),
         )
 
 
@@ -61,12 +56,12 @@ class CobCompiler:
             static_var_count=len(self.name_registry.get_name_strings(NameType.STATIC)),
             code=copy(self.code),
             piece_names=self.name_registry.get_name_strings(NameType.PIECE),
-            function_map={func_name.name: idx for func_name, idx in self.function_code_indices.items()}
+            function_map={func_name.name: idx for func_name, idx in self.function_code_indices.items()},
         )
 
     def _load_global_names(self, file_node: nodes.File):
-        assert self.name_registry is not None, 'name_registry has not been initialized!'
-        assert len(self.name_registry) == 0, 'names have already been loaded!'
+        assert self.name_registry is not None, "name_registry has not been initialized!"
+        assert len(self.name_registry) == 0, "names have already been loaded!"
 
         for declaration in file_node.declarations:
             if isinstance(declaration, nodes.PieceDeclaration):
@@ -78,7 +73,7 @@ class CobCompiler:
             elif isinstance(declaration, nodes.FuncDeclaration):
                 self.name_registry.register(declaration.name, NameType.FUNCTION)
             else:
-                raise ValueError('Unable to register names for object', declaration)
+                raise ValueError("Unable to register names for object", declaration)
 
     def handle_node(self, node: nodes.ASTNode):
         try:
@@ -86,17 +81,17 @@ class CobCompiler:
         except Exception as e:
             note = repr(node)
             if len(note) > 200:
-                note = note[:200] + '...'
-            e.add_note('Error happened in node: ' + note)
+                note = note[:200] + "..."
+            e.add_note("Error happened in node: " + note)
             raise
 
     @singledispatchmethod
     def _handle_node(self, node: nodes.ASTNode):
         if self.raise_exception_on_unhandled_node:
             raise NotImplementedError(
-                f'INTERNAL COMPILER ERROR: Node of type {node.node_name} does not have a handler!'
+                f"INTERNAL COMPILER ERROR: Node of type {node.node_name} does not have a handler!"
             )
-        log.debug(f'TODO: handle %s AST Node', node.node_name)
+        log.debug(f"TODO: handle %s AST Node", node.node_name)
         self.code.append(CobOpCode.BAD_OP_PLACEHOLDER)
 
     @_handle_node.register(list)
@@ -107,14 +102,13 @@ class CobCompiler:
     @_handle_node.register(nodes.PieceDeclaration)
     @_handle_node.register(nodes.StaticVarDeclaration)
     @_handle_node.register(preproc_nodes.PreprocNode)
-    def _handle_node__noop(self, *_, **__):
-        ...
+    def _handle_node__noop(self, *_, **__): ...
 
     @_handle_node.register
     def _handle_node__file(self, file_node: nodes.File):
         self.name_registry = NodeNameRegistry()
         self.function_code_indices = dict()
-        self.code = array('l')
+        self.code = array("l")
 
         self._load_global_names(file_node)
         for decl in file_node:
@@ -165,7 +159,8 @@ class CobCompiler:
         args = keyword_statement.args
         kw_op_code = CobOpCode.from_keyword(keyword_statement.keyword)
         if keyword in (nodes.Keyword.MOVE, nodes.Keyword.TURN) and (
-                args[-1] is None or len(args) == CobOpCode.MOVE_NOW.num_params):
+            args[-1] is None or len(args) == CobOpCode.MOVE_NOW.num_params
+        ):
             match keyword:
                 case nodes.Keyword.MOVE:
                     kw_op_code = CobOpCode.MOVE_NOW
@@ -189,7 +184,7 @@ class CobCompiler:
             stack_args.append(None)
 
         immediate_args = list(islice(chain(immediate_args, repeat(None)), kw_op_code.num_immediate_params))
-        stack_args = stack_args[:kw_op_code.num_stack_params]
+        stack_args = stack_args[: kw_op_code.num_stack_params]
 
         immediate_vals = []
         for arg in immediate_args:
@@ -225,8 +220,8 @@ class CobCompiler:
         self.code.append(CobOpCode.from_keyword(statement.keyword))
         if not isinstance(func_name := statement.args[0], nodes.NameNode):
             raise CodeError(
-                f'Expected a function name, got {func_name.node_name}',
-                CodeLocation.from_parser_node(statement.parser_node)
+                f"Expected a function name, got {func_name.node_name}",
+                CodeLocation.from_parser_node(statement.parser_node),
             )
         self.code.append(self.name_registry.lookup(func_name)[0])
         self.code.append(len(statement.args) - 1)
@@ -286,7 +281,7 @@ class CobCompiler:
             case _:
                 raise CodeError(
                     f'Illegal assignment to {name_type.description} "{assign_statement.variable.name}".',
-                    CodeLocation.from_parser_node(assign_statement.parser_node)
+                    CodeLocation.from_parser_node(assign_statement.parser_node),
                 )
 
         self.code.append(idx)
@@ -306,23 +301,23 @@ class CobCompiler:
         maybe_folded_expr = self.constant_folding(expr)
         if maybe_folded_expr is not expr:
             # node changed, reprocess
-            log.debug('Unary expression folded to %s', repr(maybe_folded_expr))
+            log.debug("Unary expression folded to %s", repr(maybe_folded_expr))
             self.handle_node(maybe_folded_expr)
         else:
             self.handle_node(expr.operand)
-            self.code.append(CobOpCode.from_unary_expression_op(expr.op))
+            self.code.append(CobOpCode.from_expression_op(expr.op))
 
     @_handle_node.register
     def _handle_node__binary_expression(self, expr: nodes.BinaryExpression):
         maybe_folded_expr = self.constant_folding(expr)
         if maybe_folded_expr is not expr:
             # node changed, reprocess
-            log.debug('Binary expression folded to %s', repr(maybe_folded_expr))
+            log.debug("Binary expression folded to %s", repr(maybe_folded_expr))
             self.handle_node(maybe_folded_expr)
         else:
             self.handle_node(expr.left)
             self.handle_node(expr.right)
-            self.code.append(CobOpCode.from_binary_expression_op(expr.op))
+            self.code.append(CobOpCode.from_expression_op(expr.op))
 
     @singledispatchmethod
     def constant_folding(self, node: nodes.ASTNode):
@@ -332,11 +327,8 @@ class CobCompiler:
     def _constant_folding__unary_expression(self, expr: nodes.UnaryExpression):
         operand = self.constant_folding(expr.operand)
         if isinstance(operand, nodes.Constant):
-            log.debug('Folding %s %s', expr.op, repr(operand))
-            return nodes.Constant(
-                expr.op.eval(operand.number_value()),
-                parser_node=expr.parser_node
-            )
+            log.debug("Folding %s %s", expr.op, repr(operand))
+            return nodes.Constant(expr.op.eval(operand.number_value()), parser_node=expr.parser_node)
         return expr
 
     @constant_folding.register
@@ -344,11 +336,8 @@ class CobCompiler:
         left = self.constant_folding(expr.left)
         right = self.constant_folding(expr.right)
         if isinstance(left, nodes.Constant) and isinstance(right, nodes.Constant):
-            log.debug('Folding %s %s %s', repr(left), expr.op, repr(right))
-            return nodes.Constant(
-                expr.op.eval(left.number_value(), right.number_value()),
-                parser_node=expr.parser_node
-            )
+            log.debug("Folding %s %s %s", repr(left), expr.op, repr(right))
+            return nodes.Constant(expr.op.eval(left.number_value(), right.number_value()), parser_node=expr.parser_node)
         return expr
 
     # terms

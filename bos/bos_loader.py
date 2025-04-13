@@ -3,21 +3,13 @@ import time
 from os import PathLike
 from pathlib import Path
 
-import antlr4.error.ErrorListener
 import pcpp
 import tree_sitter
-from antlr4 import Parser
-from antlr4.CommonTokenStream import CommonTokenStream
-from antlr4.InputStream import InputStream
-from antlr4.Token import CommonToken
-from antlr4.atn.PredictionMode import PredictionMode
-from antlr4.error.ErrorStrategy import BailErrorStrategy
+import tree_sitter_bos
 
 from bos import ast_nodes
 from bos.ast_visitor import TreeSitterBosVisitor
 from bos.bos_preprocessor import BosPreprocessor
-from bos.gen.BosLexer import BosLexer
-from bos.gen.BosParser import BosParser
 from code_error import CodeError
 from code_location import CodeLocation
 
@@ -31,9 +23,8 @@ class BosLoader:
         enable_constant_folding=False,
         file_contents: str = None,
     ):
-        self.log = logging.getLogger(self.__class__.__name__).getChild(self.filepath.name)
-
         self.filepath = Path(bos_file_path)
+        self.log = logging.getLogger(self.__class__.__name__).getChild(self.filepath.name)
         self.include_paths = [Path(p) for p in include_paths] if include_paths is not None else []
         self.enable_constant_folding = enable_constant_folding
 
@@ -45,9 +36,7 @@ class BosLoader:
         self.preprocessor: pcpp.Preprocessor | None = None
         self.preprocessed_file_contents: str | None = None
 
-        self.bos_lexer: BosLexer | None = None
-        self.token_stream: CommonTokenStream | None = None
-        self.bos_parser: BosParser | None = None
+        self.parser: tree_sitter.Parser
 
         self.parse_errors: list[CodeError] = []
         self.parser_tree: tree_sitter.Tree | None = None
@@ -73,31 +62,65 @@ class BosLoader:
             self.preproc_chunks
         ) = self.preprocessor.process_file(self.file_contents, self.filepath, self.include_paths)
 
+    @staticmethod
+    def check_errors(tree: tree_sitter.Tree, file: Path):
+        error_query = tree_sitter.Query(tree.language, "(ERROR) @error")
+        error_query_cursor = tree_sitter.QueryCursor(error_query)
+
+        if errors := error_query_cursor.captures(tree.root_node):
+            return errors['error']
+
+        missing_query = tree_sitter.Query(tree.language, "(MISSING) @missing")
+        missing_query_cursor = tree_sitter.QueryCursor(missing_query)
+
+        if missing := missing_query_cursor.captures(tree.root_node):
+            return missing['missing']
+
+        return None
+
+    NODES_TO_EXPAND = ['function_declaration', 'compound_statement', 'while_statement', 'ERROR', 'MISSING']
+
+    @staticmethod
+    def display_node(node: tree_sitter.Node, depth=0):
+        print('->' * (depth + 1), node.grammar_name, '<-' * (depth + 1))
+        for idx, child in enumerate(node.children):
+            if (field_name := node.field_name_for_child(idx)) is not None:
+                print('  ' * depth, '---', field_name, '---')
+
+            if child.grammar_name in BosLoader.NODES_TO_EXPAND:
+                BosLoader.display_node(child, depth + 1)
+            else:
+                if child.is_named:
+                    print('  ' * depth, str(child))
+                    print('  ' * depth, child.text)
+                else:
+                    print('  ' * depth, '"', child.text, '"')
+
     def _run_parser(self, force_reload=False):
         if self.parser_tree is not None and not force_reload:
             return
 
         start_time = time.perf_counter()
 
-        self.bos_lexer = BosLexer(InputStream(self.preprocessed_file_contents))
-        self.token_stream = CommonTokenStream(self.bos_lexer)
-        self.bos_parser = BosParser(self.token_stream)
-        self.bos_parser.addErrorListener(self.ErrorListener(self))
+        bos_language = tree_sitter.Language(tree_sitter_bos.language())
+        self.parser: tree_sitter.Parser = tree_sitter.Parser(bos_language)
 
-        self.parser_tree = self.bos_parser.file_()
+        self.parser_tree = self.parser.parse(self.preprocessed_file_contents.encode('utf-8'))
 
         end_time = time.perf_counter()
         self.log.debug('Parsing took %.2f seconds (%.2f mins)', end_time - start_time, (end_time - start_time) / 60)
 
-        if self.bos_parser.getNumberOfSyntaxErrors() > 0:
-            raise ValueError('Syntax errors found in preprocessed file')
+        if errors := BosLoader.check_errors(self.parser_tree, self.filepath):
+            for error in errors:
+                BosLoader.display_node(error)
+            raise ValueError('Syntax errors found in preprocessed file', errors)
 
     def _run_ast_conversion(self, force_reload=False):
         if self.ast_node_tree is not None and not force_reload:
             return
 
-        ast_visitor = ASTVisitor()
-        self.ast_node_tree = ast_visitor.visitFile(self.parser_tree)
+        ast_visitor = TreeSitterBosVisitor()
+        self.ast_node_tree = ast_visitor.visit(self.parser_tree)
         self.log.debug('AST conversion complete')
 
     def load_file(self, force_reload=False) -> ast_nodes.File:

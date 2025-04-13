@@ -32,7 +32,7 @@ class BosPreprocessor(pcpp.Preprocessor):
         @classmethod
         def _from_pcpp_token(cls, token: 'BosPreprocessor._PcppToken'):
             return cls(
-                source=PurePosixPath(token.source),
+                source=PurePosixPath(token.source.replace('\\', '/')),
                 expanded_from=token.expanded_from[-1] if getattr(token, 'expanded_from', None) else None,
                 original_text=token.expanded_from[0] if getattr(token, 'expanded_from', None) else token.value,
                 text=token.value
@@ -115,7 +115,9 @@ class BosPreprocessor(pcpp.Preprocessor):
 
             if new_chunk.source != source_path:
                 if getattr(token, 'include_depth', 0) == 1:
-                    new_chunk.original_text = f'#include "{os.path.relpath(new_chunk.source, source_path.parent)}"\n'
+                    rel_path = os.path.relpath(new_chunk.source, source_path.parent)
+                    rel_path = rel_path.replace('\\', '/')
+                    new_chunk.original_text = f'#include "{rel_path}"\n'
                 else:
                     new_chunk.original_text = ''
 
