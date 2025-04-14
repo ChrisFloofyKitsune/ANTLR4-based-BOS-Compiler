@@ -1,5 +1,6 @@
 import enum
 from enum import IntEnum
+from typing import Any
 
 from bos.ast_nodes import Keyword, ExpressionOperator
 
@@ -81,21 +82,21 @@ class CobOpCode(IntEnum):
 
     @enum.property
     def num_immediate_params(self):
-        return self._num_immediate_params
+        return self.__num_immediate_params
 
     @enum.property
     def num_stack_params(self):
-        return self._num_stack_params
+        return self.__num_stack_params
 
     def __new__(cls, hex_code: int, num_immediate_params, num_stack_params):
-        obj = int.__new__(cls, hex_code)
+        obj: Any = int.__new__(cls, hex_code)
         obj._value_ = hex_code
-        obj._num_immediate_params = num_immediate_params
-        obj._num_stack_params = num_stack_params
+        obj.__num_immediate_params = num_immediate_params
+        obj.__num_stack_params = num_stack_params
         return obj
 
     def __repr__(self):
-        return f'<{self.__class__.__name__}.{self.name}: 0x{self:08X}>'
+        return f"<{self.__class__.__name__}.{self.name}: 0x{self:08X}>"
 
     @classmethod
     def from_keyword(cls, keyword: Keyword):
@@ -153,7 +154,7 @@ class CobOpCode(IntEnum):
         return None
 
     @classmethod
-    def from_binary_expression_op(cls, op: ExpressionOperator):
+    def from_expression_op(cls, op: ExpressionOperator):
         match op:
             case ExpressionOperator.MULT:
                 return CobOpCode.MUL
@@ -192,17 +193,15 @@ class CobOpCode(IntEnum):
             case ExpressionOperator.LOGICAL_NOT:
                 return CobOpCode.LOGICAL_NOT
 
-        raise ValueError(f'Invalid / unsupported binary expression op: {op}')
-
-    @classmethod
-    def from_unary_expression_op(cls, op):
-        match op:
-            case ExpressionOperator.LOGICAL_NOT:
-                return CobOpCode.LOGICAL_NOT
-
-        raise ValueError(f'Invalid / unsupported unary expression op: {op}')
+        raise ValueError(f"Invalid / unsupported expression op: {op}")
 
 
-if __name__ == '__main__':
-    print('\n'.join(
-        [f'{op.name:>20}: {hex(op.value):>11} #imm {op.num_immediate_params} #stk {op.num_stack_params}' for op in CobOpCode]))
+if __name__ == "__main__":
+    print(
+        "\n".join(
+            [
+                f"{op.name:>20}: {hex(op.value):>11} #imm {op.num_immediate_params} #stk {op.num_stack_params}"
+                for op in CobOpCode
+            ]
+        )
+    )

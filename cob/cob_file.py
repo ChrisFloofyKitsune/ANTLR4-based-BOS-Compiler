@@ -1,12 +1,16 @@
 import struct
 from array import array
+from collections import defaultdict
 from dataclasses import dataclass
+from functools import lru_cache, cached_property
 from typing import ClassVar
+
+from script_hook_function import ScriptHookFunction
 
 
 @dataclass(kw_only=True)
 class CobFile:
-    COB_HEADER_STRUCT: ClassVar[struct] = struct.Struct('<11L')
+    COB_HEADER_STRUCT: ClassVar[struct.Struct] = struct.Struct("<11L")
     """
     fields
 
@@ -42,17 +46,35 @@ class CobFile:
         function_ptrs = self.function_ptrs
         return [end - start for start, end in zip(function_ptrs, function_ptrs[1:] + [len(self.code)])]
 
-    def get_function_code(self, identifier: int | str) -> memoryview:
-        if isinstance(identifier, str):
-            try:
-                start = self.function_map[identifier]
-            except KeyError as err:
-                raise ValueError(f"Function name '{identifier}' not found in function_map.") from err
+    def get_function_id(self, func_ident: str | int | ScriptHookFunction) -> int | None:
+        if isinstance(func_ident, ScriptHookFunction):
+            shf = func_ident
         else:
-            start = self.function_ptrs[identifier]
+            try:
+                shf = ScriptHookFunction.lookup(func_ident)
+            except (ValueError, TypeError):
+                return None
+        return self.function_map.get(shf.func_name, None)
+
+    def get_function_code(self, name_or_id: int | str) -> memoryview:
+        if isinstance(name_or_id, str):
+            try:
+                start = self.function_map[name_or_id]
+            except KeyError as err:
+                raise ValueError(f"Function name '{name_or_id}' not found in function_map.") from err
+        else:
+            start = self.function_ptrs[name_or_id]
 
         length = self.function_lengths[self.function_ptrs.index(start)]
-        return self.code[start:start + length]
+        return memoryview(self.code[start : start + length])
+
+    @property
+    def script_function_index(self) -> dict[ScriptHookFunction, int]:
+        result = defaultdict(lambda: -1)
+        for shf in ScriptHookFunction:
+            if shf.func_name in self.function_map:
+                result[shf] = self.function_map[shf.func_name]
+        return result
 
     @classmethod
     def from_bytes(cls, data_source):
@@ -71,14 +93,14 @@ class CobFile:
             code_ptr,
             _strings_ptr,
         ) = cls.COB_HEADER_STRUCT.unpack_from(data_source, 0)
-        
+
         if version != 4:
             raise ValueError(f"Unsupported COB version: {version}. Only version 4 is supported.")
 
-        code = array('L', byte_data[code_ptr:code_ptr + (code_length * 4)])
+        code = array("L", byte_data[code_ptr : code_ptr + (code_length * 4)])
 
         function_ptrs = [
-            *memoryview(byte_data[function_code_ptrs_ptr:function_code_ptrs_ptr + (function_count * 4)]).cast('L')
+            *memoryview(byte_data[function_code_ptrs_ptr : function_code_ptrs_ptr + (function_count * 4)]).cast("L")
         ]
 
         function_names = cls.extract_strings(byte_data, function_names_ptrs_ptr, function_count)
@@ -86,20 +108,13 @@ class CobFile:
 
         function_map = dict(zip(function_names, function_ptrs))
 
-        return cls(
-            static_var_count=static_var_count,
-            code=code,
-            piece_names=piece_names,
-            function_map=function_map
-        )
+        return cls(static_var_count=static_var_count, code=code, piece_names=piece_names, function_map=function_map)
 
     @staticmethod
     def extract_strings(byte_data: bytearray, start_ptr: int, count: int):
         result = []
-        for string_ptr in memoryview(byte_data[start_ptr:start_ptr + (count * 4)]).cast('L'):
-            result.append(
-                byte_data[string_ptr:byte_data.find(b'\0', string_ptr)].decode('utf8')
-            )
+        for string_ptr in memoryview(byte_data[start_ptr : start_ptr + (count * 4)]).cast("L"):
+            result.append(byte_data[string_ptr : byte_data.find(b"\0", string_ptr)].decode("utf8"))
         return result
 
     def to_bytes(self) -> bytes:
@@ -115,19 +130,19 @@ class CobFile:
         piece_names_ptrs_ptr = function_names_ptrs_ptr + function_count * 4
         strings_ptr = piece_names_ptrs_ptr + piece_count * 4
 
-        function_ptrs = b''.join(struct.pack('<L', ptr) for ptr in self.function_ptrs)
+        function_ptrs = b"".join(struct.pack("<L", ptr) for ptr in self.function_ptrs)
 
-        function_names = b''
-        function_name_ptrs = b''
+        function_names = b""
+        function_name_ptrs = b""
         for name in self.function_names:
-            function_name_ptrs += struct.pack('<L', strings_ptr + len(function_names))
-            function_names += name.encode('utf8') + b'\0'
+            function_name_ptrs += struct.pack("<L", strings_ptr + len(function_names))
+            function_names += name.encode("utf8") + b"\0"
 
-        piece_name_ptrs = b''
-        piece_names = b''
+        piece_name_ptrs = b""
+        piece_names = b""
         for name in self.piece_names:
-            piece_name_ptrs += struct.pack('<L', strings_ptr + len(function_names) + len(piece_names))
-            piece_names += name.encode('utf8') + b'\0'
+            piece_name_ptrs += struct.pack("<L", strings_ptr + len(function_names) + len(piece_names))
+            piece_names += name.encode("utf8") + b"\0"
 
         code = self.code.tobytes()
 
@@ -142,32 +157,28 @@ class CobFile:
             function_names_ptrs_ptr,
             piece_names_ptrs_ptr,
             code_ptr,
-            strings_ptr
+            strings_ptr,
         )
 
-        return (
-            header
-            + code
-            + function_ptrs + function_name_ptrs + piece_name_ptrs
-            + function_names + piece_names
-        )
+        return header + code + function_ptrs + function_name_ptrs + piece_name_ptrs + function_names + piece_names
 
     def save_to_file(self, file_path: str):
-        with open(file_path, 'wb') as file:
+        with open(file_path, "wb") as file:
             file.write(self.to_bytes())
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
+
     def _main():
-        with open('./example_files/Units/legcom.cob', 'rb') as file:
+        with open("./example_files/Units/legcom.cob", "rb") as file:
             byte_data = file.read()
-    
+
         cob_file = CobFile.from_bytes(byte_data)
         serialized_data = cob_file.to_bytes()
-    
-        with open('legcom_reserialized.cob', 'wb') as file:
+
+        with open("legcom_reserialized.cob", "wb") as file:
             file.write(serialized_data)
-    
+
         if byte_data != serialized_data:
             print("Byte data mismatch found:")
             for i, (original_byte, serialized_byte) in enumerate(zip(byte_data, serialized_data)):
@@ -177,4 +188,5 @@ if __name__ == '__main__':
                 print(f"Length mismatch: original {len(byte_data)} != serialized {len(serialized_data)}")
         else:
             print("Byte data matches.")
+
     _main()
