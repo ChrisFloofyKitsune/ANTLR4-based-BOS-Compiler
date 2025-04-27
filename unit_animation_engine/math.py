@@ -9,6 +9,7 @@ INV_SIM_SPEED: Final[float] = 1.0 / SIM_SPEED
 int32: TypeAlias = glm.int32
 uint32: TypeAlias = glm.uint32
 
+float2: TypeAlias = glm.f32vec2
 float3: TypeAlias = glm.f32vec3
 radians: TypeAlias = float
 radians3: TypeAlias = glm.f32vec3

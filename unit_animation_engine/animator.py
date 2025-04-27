@@ -184,34 +184,34 @@ class Animator:
 
     @staticmethod
     def tick_move_anim(delta_time_ms: int, lmp: LocalModelPiece, ai: AnimInfo) -> bool:
-        pos: math.float3 = lmp.get_position()
+        pos: math.float3 = lmp.position
         pos[ai.axis], done = move_toward_target_position(
             pos[ai.axis], ai.dest, ai.speed,
             delta_time_ms
         )
-        lmp.set_position(pos)
+        lmp.position = pos
         return done
 
     @staticmethod
     def tick_turn_anim(delta_time_ms: int, lmp: LocalModelPiece, ai: AnimInfo) -> bool:
-        rot: math.radians3 = lmp.get_rotation()
+        rot: math.radians3 = lmp.rotation
         rot[ai.axis] = math.clamp_rad(rot[ai.axis])
         rot[ai.axis], done = turn_toward_target_position(
             rot[ai.axis], ai.dest, ai.speed,
             delta_time_ms
         )
-        lmp.set_rotation(rot)
+        lmp.rotation = rot
         return done
 
     @staticmethod
     def tick_spin_anim(delta_time_ms: int, lmp: LocalModelPiece, ai: AnimInfo) -> bool:
-        rot: math.radians3 = lmp.get_rotation()
+        rot: math.radians3 = lmp.rotation
         rot[ai.axis] = math.clamp_rad(rot[ai.axis])
         rot[ai.axis], ai.speed, done = spin_towards_target_speed(
             rot[ai.axis], ai.dest, ai.speed, ai.accel,
             delta_time_ms
         )
-        lmp.set_rotation(rot)
+        lmp.rotation = rot
         return done
 
     __TICK_ANIM_FUNCS: Final[dict[AnimType, TickAnimFunc]] = {
@@ -298,12 +298,12 @@ class Animator:
 
         lmp = self.pieces[piece]
 
-        pos = lmp.get_position()
+        pos = lmp.position
         offset = lmp.get_original_offset()
 
         pos[axis] = offset[axis] + dest
 
-        lmp.set_position(pos)
+        lmp.position = pos
 
     def turn_now(self, piece: ScriptPieceIndex, axis: math.Axis, dest: radians) -> None:
         if not self._piece_exists_guard(piece):
@@ -311,10 +311,10 @@ class Animator:
 
         lmp = self.pieces[piece]
 
-        rot = lmp.get_rotation()
+        rot = lmp.rotation
         rot[axis] = math.clamp_rad(dest)
 
-        lmp.set_rotation(rot)
+        lmp.rotation = rot
 
     def wait_on_anim(self, anim_key: AnimKey) -> bool:
         """

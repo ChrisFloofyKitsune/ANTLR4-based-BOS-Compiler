@@ -57,29 +57,34 @@ class TestTransform(unittest.TestCase):
         self.assertIsNone(child.parent)
 
     def test_local_space_matrix(self):
-        transform = Transform(position=float3(1, 2, 3), rotation=radians3(0, 0, 0), scale=float3(1, 1, 1))
-        expected_matrix = glm.translate(float3(1, 2, 3))
-        self.assertEqual(expected_matrix, transform.model_space_matrix)
+        transform = Transform(position=float3(1, 2, 3))
+        self.assertEqual(glm.translate(float3(1, 2, 3)), transform.model_space_matrix)
 
     def test_model_space_matrix_with_parent(self):
         parent = Transform(position=float3(1, 0, 0))
-        child = Transform(position=float3(0, 1, 0), parent=parent)
-        expected_matrix = glm.translate((1, 1, 0))
-        self.assertEqual(expected_matrix, child.model_space_matrix)
+        child = Transform(position=float3(0, 0, 1), parent=parent)
+        self.assertEqual(glm.translate((1, 0, 1)), child.model_space_matrix)
 
-    def test_self_parenting(self):
+        parent.scale = float3(2)
+        self.assertEqual(float3(1, 0, 2), child.model_space_matrix[3].xyz)
+
+        parent.rotation = radians3(0, glm.pi() / 2, 0)
+        self.assertEqual(float3(3, 0, 0), glm.trunc(child.model_space_matrix[3].xyz))
+
+    def test_self_parenting_raises_error(self):
         transform = Transform()
         with self.assertRaises(ValueError):
             transform.parent = transform
 
-    def test_circular_hierarchy(self):
+    def test_circular_hierarchy_raises_error(self):
         parent = Transform()
         child = Transform(parent=parent)
+        ancestor = Transform(parent=child)
         with self.assertRaises(ValueError):
-            parent.parent = child  # This would create a circular hierarchy.
+            parent.parent = ancestor
 
     def test_empty_children_list(self):
-        transform = Transform()
+        transform = Transform(children=[Transform(), Transform()])
         transform.children = None
         self.assertEqual(transform.children, [])
 
