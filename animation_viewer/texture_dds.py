@@ -187,6 +187,7 @@ class TextureDDS:
         if self.gl_texture_id is not None:
             return
 
+        # ensure that at least the base level (0) is loaded
         mipmap_count = max(1, self.header.mip_map_count)
 
         self.gl_texture_id = GL.glGenTextures(1)

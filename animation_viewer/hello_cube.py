@@ -8,7 +8,7 @@ import sys
 import traceback
 
 from OpenGL.GL import *
-from ctypes import c_void_p, sizeof
+from ctypes import c_void_p, sizeof, byref
 import math, time
 from pyglm import glm
 
@@ -50,9 +50,9 @@ attributes: list[float] = []
 
 for i in range(len(positions)):
     attributes.extend([
-        positions[i][0], positions[i][1], positions[i][2],
-        normals[i][0], normals[i][1], normals[i][2],
-        tex_coords[i][0], tex_coords[i][1],
+        *positions[i],
+        *normals[i],
+        *tex_coords[i],
     ])
 
 no_of_indices = len(indices)
@@ -94,21 +94,28 @@ class OpenGLApp(pyopengltk.OpenGLFrame):
         glDebugMessageInsert(GL_DEBUG_SOURCE_APPLICATION, GL_DEBUG_TYPE_MARKER, 0, GL_DEBUG_SEVERITY_NOTIFICATION,
                              -1, "Starting debug messaging service")
 
-        vao = glGenVertexArrays(1)
-        vbo = glGenBuffers(1)
+        vbo = glm.uint32(0)
+        glCreateBuffers(1, byref(vbo))
+        glNamedBufferData(vbo, len(gl_attributes) * sizeof(GLfloat), byref(gl_attributes), GL_STATIC_DRAW)
+
+        vao = glm.uint32(0)
+        glCreateVertexArrays(1, byref(vao))
+
+        glVertexArrayVertexBuffer(vao, 0, vbo, 0, 8 * sizeof(GLfloat))
+
+        glVertexArrayAttribBinding(vao, 0, 0)
+        glVertexArrayAttribFormat(vao, 0, 3, GL_FLOAT, False, 0 * sizeof(GLfloat))
+        glEnableVertexArrayAttrib(vao, 0)
+
+        glVertexArrayAttribBinding(vao, 1, 0)
+        glVertexArrayAttribFormat(vao, 1, 3, GL_FLOAT, False, 3 * sizeof(GLfloat))
+        glEnableVertexArrayAttrib(vao, 1)
+
+        glVertexArrayAttribBinding(vao, 2, 0)
+        glVertexArrayAttribFormat(vao, 2, 2, GL_FLOAT, False, 6 * sizeof(GLfloat))
+        glEnableVertexArrayAttrib(vao, 2)
 
         glBindVertexArray(vao)
-        glBindBuffer(GL_ARRAY_BUFFER, vbo)
-        glBufferData(GL_ARRAY_BUFFER, gl_attributes, GL_STATIC_DRAW)
-
-        glVertexAttribPointer(0, 3, GL_FLOAT, False, 8 * sizeof(GLfloat), c_void_p(0 * sizeof(GLfloat)))
-        glVertexAttribPointer(1, 3, GL_FLOAT, False, 8 * sizeof(GLfloat), c_void_p(3 * sizeof(GLfloat)))
-        glVertexAttribPointer(2, 2, GL_FLOAT, False, 8 * sizeof(GLfloat), c_void_p(6 * sizeof(GLfloat)))
-
-        glEnableVertexAttribArray(0)
-        glEnableVertexAttribArray(1)
-        glEnableVertexAttribArray(2)
-
         ebo = glGenBuffers(1)
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo)
         glBufferData(GL_ELEMENT_ARRAY_BUFFER, gl_indices, GL_STATIC_DRAW)

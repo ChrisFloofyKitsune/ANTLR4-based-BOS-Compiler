@@ -3,3 +3,4 @@ pyopengl
 pyopengl-accelerate
 pyopengltk
 pillow
+numpy
