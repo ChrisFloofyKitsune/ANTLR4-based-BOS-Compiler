@@ -1,6 +1,7 @@
 pyglm
-pyopengl
-pyopengl-accelerate
-pyopengltk
-pillow
+pyglet
+imgui[pyglet]
 numpy
+moderngl
+moderngl-window
+moderngl-window[imgui]

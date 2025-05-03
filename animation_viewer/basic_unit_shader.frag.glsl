@@ -5,7 +5,6 @@ uniform vec3 u_team_color = vec3(1);
 
 uniform sampler2D u_texture;
 
-in vec3 v_pos;
 in vec3 v_nv;
 in vec2 v_uv;
 
@@ -14,5 +13,7 @@ out vec3 frag_color;
 void main()
 {
     vec4 tex_color = texture(u_texture, v_uv);
-    frag_color = mix(tex_color.rgb, u_team_color, tex_color.a);
+    float alignedness = max(0, dot(normalize(v_nv), vec3(0, 0, 1)));
+    frag_color = mix(tex_color.rgb, u_team_color, tex_color.a) * alignedness;
+    //frag_color = normalize((vec3(2) + v_nv) / 2);
 }

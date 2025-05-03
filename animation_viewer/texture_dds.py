@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ctypes
 import enum
 import struct
 import typing
@@ -7,14 +8,9 @@ import warnings
 
 import typing_extensions
 from dataclasses import dataclass
+import numpy as np
 
-from OpenGL import GL as GL
-from OpenGL.GL.EXT.texture_compression_s3tc import (
-    GL_COMPRESSED_RGB_S3TC_DXT1_EXT,
-    GL_COMPRESSED_RGBA_S3TC_DXT1_EXT,
-    GL_COMPRESSED_RGBA_S3TC_DXT3_EXT,
-    GL_COMPRESSED_RGBA_S3TC_DXT5_EXT,
-)
+import pyglet.gl as GL
 
 _DDS_header_struct = struct.Struct('<7L 11L 32s 4L L')
 """
@@ -142,22 +138,27 @@ class PixelFormat:
 
 class TextureDDS:
     class GLInternalFormat(enum.IntEnum):
-        RGB_DXT1 = GL_COMPRESSED_RGB_S3TC_DXT1_EXT
-        RGBA_DXT1 = GL_COMPRESSED_RGBA_S3TC_DXT1_EXT
-        RGBA_DXT3 = GL_COMPRESSED_RGBA_S3TC_DXT3_EXT
-        RGBA_DXT5 = GL_COMPRESSED_RGBA_S3TC_DXT5_EXT
+        RGB_DXT1 = GL.GL_COMPRESSED_RGB_S3TC_DXT1_EXT
+        RGBA_DXT1 = GL.GL_COMPRESSED_RGBA_S3TC_DXT1_EXT
+        RGBA_DXT3 = GL.GL_COMPRESSED_RGBA_S3TC_DXT3_EXT
+        RGBA_DXT5 = GL.GL_COMPRESSED_RGBA_S3TC_DXT5_EXT
 
     header: DDSHeader
-    texture_data: bytes
+    texture_data: np.ndarray
 
     gl_texture_id: int | None
     gl_internal_format: GLInternalFormat
 
     def __init__(self):
         self.header = None
-        self.texture_data = b''
+        self.texture_data = None
         self.gl_texture_id = None
         self.gl_internal_format = None
+
+    def __del__(self):
+        if self.gl_texture_id is not None:
+            GL.glDeleteTextures(1, ctypes.byref(ctypes.c_uint(self.gl_texture_id)))
+            self.gl_texture_id = None
 
     @classmethod
     def from_bytes(cls, data: typing_extensions.Buffer) -> TextureDDS:
@@ -169,7 +170,7 @@ class TextureDDS:
 
         result = TextureDDS()
         result.header = DDSHeader.from_bytes(data[4:4 + _DDS_header_struct.size])
-        result.texture_data = data[4 + _DDS_header_struct.size:]
+        result.texture_data = np.frombuffer(data[4 + _DDS_header_struct.size:], dtype='b')
 
         match result.header.pixel_format.four_cc:
             case PixelFormatFourCC.DXT1:
@@ -190,7 +191,9 @@ class TextureDDS:
         # ensure that at least the base level (0) is loaded
         mipmap_count = max(1, self.header.mip_map_count)
 
-        self.gl_texture_id = GL.glGenTextures(1)
+        tex_id = ctypes.c_uint(0)
+        GL.glGenTextures(1, ctypes.byref(tex_id))
+        self.gl_texture_id = tex_id.value
         GL.glBindTexture(GL.GL_TEXTURE_2D, self.gl_texture_id)
 
         GL.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_BASE_LEVEL, 0)
@@ -205,10 +208,11 @@ class TextureDDS:
         width = self.header.width
         height = self.header.height
         block_size = 8 if self.gl_internal_format == TextureDDS.GLInternalFormat.RGB_DXT1 else 16
-        offset = 0
 
         GL.glTexStorage2D(GL.GL_TEXTURE_2D, mipmap_count, self.gl_internal_format.value, width, height)
 
+        offset = 0
+        tex_ptr = ctypes.c_void_p(self.texture_data.ctypes.data)
         for i in range(mipmap_count):
             if width == 0 or height == 0:
                 warnings.warn(
@@ -218,13 +222,21 @@ class TextureDDS:
                 break
 
             size = ((width + 3) // 4) * ((height + 3) // 4) * block_size
+
             GL.glCompressedTexSubImage2D(
                 GL.GL_TEXTURE_2D,
                 i, 0, 0, width, height,
                 self.gl_internal_format.value,
-                self.texture_data[offset:offset + size]
+                size,
+                ctypes.c_void_p(tex_ptr.value + offset),
             )
 
             offset += size
             width = max(1, width // 2)
             height = max(1, height // 2)
+
+    def use(self):
+        if self.gl_texture_id is None:
+            raise ValueError("Texture not loaded into OpenGL")
+
+        GL.glBindTexture(GL.GL_TEXTURE_2D, self.gl_texture_id)
