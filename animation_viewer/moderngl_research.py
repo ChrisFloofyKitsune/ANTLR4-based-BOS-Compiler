@@ -1,3 +1,4 @@
+import struct
 from copy import copy
 from pathlib import Path
 
@@ -78,47 +79,42 @@ class MGLWindow(CameraWindow):
             self.leg_color_texture = TextureDDS.from_bytes(f.read())
         self.leg_color_texture.load_into_opengl()
 
+
         vertex_data = []
         indices = []
-        current_piece_id = 0
         piece_id_map = {}
         matrix_data = bytearray()
 
-        for piece in self.s3o_legcom.pieces():
-            index_offset = len(vertex_data)
-            piece_id_map[piece] = current_piece_id
+        for piece_id, piece in enumerate(self.s3o_legcom.pieces()):
+            piece_id_map[piece] = piece_id
 
             piece_offset = piece.parent_offset
             parent = piece.parent
             while parent:
                 piece_offset = piece_offset + parent.parent_offset
                 parent = parent.parent
+            matrix_data.extend(glm.translate(piece_offset).to_bytes())
+
+            index_offset = len(vertex_data)
+            indices.extend(struct.pack('l', idx + index_offset) for idx in piece.indices)
 
             for vertex in piece.vertices:
-                vertex_data.append((
-                    vertex.position,
-                    vertex.normal,
-                    vertex.tex_coords,
-                    glm.ivec2(current_piece_id, piece_id_map.get(piece.parent, -1))
-                ))
+                vertex_bytes = (
+                    vertex.position.to_bytes() + vertex.normal.to_bytes() + vertex.tex_coords.to_bytes()
+                    + glm.ivec2(piece_id, piece_id_map.get(piece.parent, -1)).to_bytes()
+                )
+                vertex_data.append(vertex_bytes)
 
-            matrix_data.extend(glm.translate(piece_offset).to_bytes())
-            indices.extend(idx + index_offset for idx in piece.indices)
-            current_piece_id += 1
-
-        vertex_data = np.array(vertex_data, dtype='3f4, 3f4, 2f4, 2i4')
-        indices = np.array(indices, dtype='u4')
         piece_matrices_buffer = self.ctx.buffer(matrix_data)
-
         piece_matrices_buffer.bind_to_storage_buffer(0)
 
         self.legcom_vao = VAO("geometry:legcom")
         self.legcom_vao.buffer(
-            vertex_data,
+            b''.join(vertex_data),
             '3f4 3f4 2f4 2i4',
             ['in_position', 'in_normal', 'in_uv', 'in_piece_info']
         )
-        self.legcom_vao.index_buffer(indices)
+        self.legcom_vao.index_buffer(b''.join(indices))
 
     def on_render(self, time: float, frametime: float):
         self.ctx.enable_only(moderngl.CULL_FACE | moderngl.DEPTH_TEST)
