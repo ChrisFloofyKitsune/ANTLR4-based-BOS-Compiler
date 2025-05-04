@@ -1,3 +1,4 @@
+from copy import copy
 from pathlib import Path
 
 import moderngl
@@ -17,7 +18,14 @@ class CameraWindow(mglw.WindowConfig):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.camera = KeyboardCamera(self.wnd.keys, aspect_ratio=self.wnd.aspect_ratio)
+        self.camera = KeyboardCamera(
+            self.wnd.keys,
+            aspect_ratio=self.wnd.aspect_ratio,
+            fov=45.0,
+            near=0.1,
+            far=1000.0,
+        )
+        self.camera.velocity *= 4
         self.camera_enabled = True
 
     def on_key_event(self, key, action, modifiers):
@@ -50,13 +58,14 @@ class MGLWindow(CameraWindow):
     gl_version = (4, 6)
     window_size = (800, 800)
     aspect_ratio = 1.0
-    clear_color = (0.25, 0.25, 0.25, 1.0)
+    clear_color = (0.2, 0.2, 0.2, 1.0)
     resource_dir = Path(__file__).parent
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.wnd.mouse_exclusivity = True
-        self.cube = mglw_geometry.cube(size=(2, 2, 2))
+        self.camera.position = glm.vec3(0, 0, 100)
+
         self.prog = self.load_program(
             vertex_shader="basic_unit_shader.vert.glsl",
             fragment_shader="basic_unit_shader.frag.glsl",
@@ -71,23 +80,50 @@ class MGLWindow(CameraWindow):
 
         vertex_data = []
         indices = []
+        current_piece_id = 0
+        piece_id_map = {}
+        matrix_data = bytearray()
+
         for piece in self.s3o_legcom.pieces():
             index_offset = len(vertex_data)
-            for vertex in piece.vertices:
-                vertex_data.append((vertex.position, vertex.normal, vertex.tex_coords))
-            indices.extend(idx + index_offset for idx in piece.indices)
+            piece_id_map[piece] = current_piece_id
 
-        vertex_data = np.array(vertex_data, dtype='3f4, 3f4, 2f4')
+            piece_offset = piece.parent_offset
+            parent = piece.parent
+            while parent:
+                piece_offset = piece_offset + parent.parent_offset
+                parent = parent.parent
+
+            for vertex in piece.vertices:
+                vertex_data.append((
+                    vertex.position,
+                    vertex.normal,
+                    vertex.tex_coords,
+                    glm.ivec2(current_piece_id, piece_id_map.get(piece.parent, -1))
+                ))
+
+            matrix_data.extend(glm.translate(piece_offset).to_bytes())
+            indices.extend(idx + index_offset for idx in piece.indices)
+            current_piece_id += 1
+
+        vertex_data = np.array(vertex_data, dtype='3f4, 3f4, 2f4, 2i4')
         indices = np.array(indices, dtype='u4')
+        piece_matrices_buffer = self.ctx.buffer(matrix_data)
+
+        piece_matrices_buffer.bind_to_storage_buffer(0)
 
         self.legcom_vao = VAO("geometry:legcom")
-        self.legcom_vao.buffer(vertex_data, '3f4 3f4 2f4', ['in_position', 'in_normal', 'in_uv'])
+        self.legcom_vao.buffer(
+            vertex_data,
+            '3f4 3f4 2f4 2i4',
+            ['in_position', 'in_normal', 'in_uv', 'in_piece_info']
+        )
         self.legcom_vao.index_buffer(indices)
 
     def on_render(self, time: float, frametime: float):
         self.ctx.enable_only(moderngl.CULL_FACE | moderngl.DEPTH_TEST)
 
-        model_view = glm.scale(glm.vec3(0.25))
+        model_view = glm.identity(glm.mat4)
 
         self.prog["u_projection"].write(self.camera.projection.matrix)
         self.prog["u_view"].write(self.camera.matrix)
