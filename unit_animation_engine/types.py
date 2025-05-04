@@ -1,10 +1,8 @@
-from collections.abc import Callable
 from dataclasses import dataclass
 from enum import IntEnum
-from typing import NewType, TypeAlias, NamedTuple
+from typing import NewType, NamedTuple
 
 from unit_animation_engine import math
-from unit_animation_engine.local_model_piece import LocalModelPiece
 from unit_animation_engine.math import RadiansPerFrame, Axis, radians
 
 PieceIndex = NewType("PieceIndex", int)
@@ -67,17 +65,4 @@ class AnimInfo:
         return AnimKey(self.anim_type, self.piece, self.axis)
 
 
-TickAnimFunc: TypeAlias = Callable[[int, LocalModelPiece, AnimInfo], bool]
-"""
-A function type for processing animations during a tick.
 
-Parameters:
-
-- tick_rate: int - The rate of ticks per second.
-- piece: LocalModelPiece - The model piece being animated.
-- anim: AnimInfo - The animation information.
-
-Returns:
-
-- bool: True if the animation is complete, False otherwise.
-"""

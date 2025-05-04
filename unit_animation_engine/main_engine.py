@@ -1,14 +1,14 @@
+from __future__ import annotations
+from typing import TYPE_CHECKING
+
 import logging
 
-from unit_animation_engine.animator import Animator
+if TYPE_CHECKING:
+    from unit_animation_engine.animator import Animator
+from unit_animation_engine.exceptions import UnitEngineError
 from unit_animation_engine.script_engine import ScriptEngine, ScriptEngineT
 from unit_animation_engine.types import AnimKey
 from unit_animation_engine.unit import Unit
-
-
-class UnitEngineError(Exception):
-    pass
-
 
 log = logging.getLogger(__name__)
 

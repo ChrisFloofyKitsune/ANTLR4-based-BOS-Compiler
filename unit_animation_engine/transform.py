@@ -1,10 +1,67 @@
 from __future__ import annotations
 
+from copy import copy, deepcopy
+from typing import TypeVar, Generic, Callable, Final
+
 from pyglm import glm
 
 from unit_animation_engine import math
 from unit_animation_engine.math import float3, radians3, matrix44
 
+T = TypeVar("T")
+
+class WatchedValue(Generic[T]):
+    NO_VALUE: Final = object()
+
+    name: str
+    storage_name: str
+    default: T | None
+
+    def __init__(self, default: T | None = None):
+        self.default = default
+
+    def __set_name__(self, owner, name):
+        self.name = name
+        self.storage_name = "_value_" + name
+
+    def __get__(self, instance, owner=None):
+        if instance is None:
+            return self
+
+        val = self._value(instance)
+        if self._stored_value(instance) is WatchedValue.NO_VALUE:
+            self._set_stored_value(instance, val)
+
+        return val
+
+    def __set__(self, instance: object, value):
+        self._set_value(instance, value)
+
+    def _value(self, instance: object) -> T | None:
+        val = instance.__dict__.get(self.name)
+        if val is None:
+            new_val = deepcopy(self.default)
+            instance.__dict__[self.name] = new_val
+            return new_val
+        else:
+            return val
+
+    def _set_value(self, instance: object, value: T) -> None:
+        instance.__dict__[self.name] = deepcopy(value)
+
+    def _stored_value(self, instance: object) -> T | WatchedValue.NO_VALUE:
+        return instance.__dict__.get(self.storage_name, WatchedValue.NO_VALUE)
+
+    def _set_stored_value(self, instance: object, value: T) -> None:
+        instance.__dict__[self.storage_name] = deepcopy(value)
+
+    def check_dirty(self, instance: object) -> bool:
+        if self._stored_value(instance) is WatchedValue.NO_VALUE:
+            return False
+        return self._stored_value(instance) != self._value(instance)
+
+    def clear_dirty(self, instance: object) -> None:
+        self._set_stored_value(instance, WatchedValue.NO_VALUE)
 
 class Transform:
     """
@@ -19,11 +76,11 @@ class Transform:
     _dirty: bool
     """ Flag indicating whether the transform needs to be recalculated. """
 
-    _position: float3
+    position = WatchedValue[float3]()
     """ The position of the transform in local space. """
-    _rotation: radians3
+    rotation = WatchedValue[float3]()
     """ The rotation of the transform in local space (in radians). """
-    _scale: float3
+    scale = WatchedValue[float3]()
     """ The scale of the transform in local space. """
 
     _parent: Transform | None
@@ -36,6 +93,32 @@ class Transform:
     _model_space_matrix: matrix44
     """ The model space transformation matrix. """
 
+    def _check_dirty(self):
+        """
+        Check if the transform is dirty and needs to be recalculated.
+
+        :param clear_watched_values: If True, clear the watched values after checking.
+        :return: True if the transform is dirty, False otherwise.
+        """
+
+        if (
+            Transform.position.check_dirty(self)
+            or Transform.rotation.check_dirty(self)
+            or Transform.scale.check_dirty(self)
+        ):
+            self._set_dirty()
+
+        return self._dirty
+
+    def _clear_dirty(self):
+        """
+        Clear the dirty flag and watched values.
+        """
+        self._dirty = False
+        Transform.position.clear_dirty(self)
+        Transform.rotation.clear_dirty(self)
+        Transform.scale.clear_dirty(self)
+
     def _set_dirty(self):
         """
         Mark this Transform as dirty, which will force a recalculation
@@ -45,82 +128,11 @@ class Transform:
         the entire hierarchy is updated.
         """
         if self._dirty:
-            # already dirty, avoid recursive calls
             return
 
         self._dirty = True
         for child in self._children:
             child._set_dirty()
-
-    @property
-    def position(self) -> float3:
-        """
-        Get the position of the transform in local space.
-
-        :return: The position as a `float3` vector.
-        """
-        return self._position
-
-    @position.setter
-    def position(self, value: float3) -> None:
-        """
-        Set the position of the transform in local space.
-
-        :param value: The new position as a `float3` vector.
-        """
-        if self._position == value:
-            return
-
-        self._position = value
-        self._set_dirty()
-
-    @property
-    def rotation(self) -> radians3:
-        """
-        Get the rotation of the transform in local space.
-
-        Note: The rotation is in YXZ order.
-
-        :return: The rotation as a `radians3` vector.
-        """
-        return self._rotation
-
-    @rotation.setter
-    def rotation(self, value: radians3) -> None:
-        """
-        Set the rotation of the transform in local space.
-
-        Note: The rotation is in YXZ order.
-
-        :param value: The new rotation as a `radians3` vector.
-        """
-        if self._rotation == value:
-            return
-
-        self._rotation = value
-        self._set_dirty()
-
-    @property
-    def scale(self) -> float3:
-        """
-        Get the scale of the transform in local space.
-
-        :return: The scale as a `float3` vector.
-        """
-        return self._scale
-
-    @scale.setter
-    def scale(self, value: float3) -> None:
-        """
-        Set the scale of the transform in local space.
-
-        :param value: The new scale as a `float3` vector.
-        """
-        if self._scale == value:
-            return
-
-        self._scale = value
-        self._set_dirty()
 
     @property
     def parent(self) -> Transform | None:
@@ -179,7 +191,7 @@ class Transform:
             # using .parent property here will do the necessary bookkeeping
             child.parent = None
 
-        self._children = value if value is not None else []
+        self._children = value or []
         for child in self._children:
             # using .parent property here will do the necessary bookkeeping
             child.parent = self
@@ -241,7 +253,7 @@ class Transform:
 
         :return: The local space matrix as a `matrix44`.
         """
-        if self._dirty:
+        if self._check_dirty():
             self.update_parent_matrices_recursively()
         return self._local_space_matrix
 
@@ -252,7 +264,7 @@ class Transform:
 
         :return: The model space matrix as a `matrix44`.
         """
-        if self._dirty:
+        if self._check_dirty():
             self.update_parent_matrices_recursively()
         return self._model_space_matrix
 
@@ -262,8 +274,9 @@ class Transform:
         of the hierarchy. This ensures that all parent transforms are updated
         before updating this transform.
         """
+
         if not self._dirty:
-            return  # Skip if this transform is already up-to-date
+            return
 
         # Ensure the parent is updated first
         if self._parent and self._parent._dirty:
@@ -274,10 +287,11 @@ class Transform:
         self._model_space_matrix = self._local_space_matrix
 
         if self._parent:
+            # Combine with parent transform's matrix
             self._model_space_matrix = self._parent.model_space_matrix @ self._local_space_matrix
 
         # Mark this transform as clean
-        self._dirty = False
+        self._clear_dirty()
 
     def calculate_local_space_matrix(self) -> matrix44:
         """
@@ -288,15 +302,20 @@ class Transform:
 
         :return: The local space matrix as a `matrix44`.
         """
-        translation = glm.translate(self._position)
-        rotation = (
-            glm.rotate(self._rotation.y, math.Y_AXIS)
-            @ glm.rotate(self._rotation.x, math.X_AXIS)
-            @ glm.rotate(self._rotation.z, math.Z_AXIS)
-        )
-        scaling = glm.scale(self._scale)
 
-        return translation @ rotation @ scaling
+        try:
+            translation = glm.translate(self.position)
+            rotation = (
+                glm.rotate(self.rotation.y, math.Y_AXIS)
+                @ glm.rotate(self.rotation.x, math.X_AXIS)
+                @ glm.rotate(self.rotation.z, math.Z_AXIS)
+            )
+            scaling = glm.scale(self.scale)
+
+            return translation @ rotation @ scaling
+        except Exception as e:
+            print(f"Error calculating local space matrix: {e}")
+            return glm.identity(glm.mat4)
 
     def __init__(
         self,
@@ -318,9 +337,9 @@ class Transform:
         """
         self._dirty = True
 
-        self._position = position
-        self._rotation = rotation
-        self._scale = scale
+        self.position = position
+        self.rotation = rotation
+        self.scale = scale
 
         self._parent = parent
         if self._parent:

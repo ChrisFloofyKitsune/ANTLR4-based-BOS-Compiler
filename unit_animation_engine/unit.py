@@ -1,11 +1,10 @@
 from abc import ABC
-
-from cob.animation_engine.local_model import LocalModel
+from typing import Any
 
 
 class Unit(ABC):
 
-    local_model: LocalModel
+    local_model: Any
 
     def get_object_space_pos(self, rel_pos):
         pass

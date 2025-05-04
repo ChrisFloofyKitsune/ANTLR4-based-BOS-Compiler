@@ -8,8 +8,8 @@ from unit_animation_engine.anim_functions import (
     turn_toward_target_position,
     spin_towards_target_speed,
 )
-from unit_animation_engine.local_model_piece import LocalModelPiece
-from unit_animation_engine.main_engine import MainAnimationEngine, UnitEngineError
+from unit_animation_engine.local_model_piece import LocalModelPiece, TickAnimFunc
+from unit_animation_engine.exceptions import UnitEngineError
 from unit_animation_engine.math import radians, RadiansPerFrame
 from unit_animation_engine.types import (
     AnimType,
@@ -17,7 +17,6 @@ from unit_animation_engine.types import (
     PieceIndex_NONE,
     ScriptPieceIndex,
     ModelPieceIndex,
-    TickAnimFunc,
     AnimKey,
 )
 from unit_animation_engine.unit import Unit
@@ -33,6 +32,7 @@ class Animator:
     _anims: dict[AnimKey, AnimInfo] = {}
     _done_anims: dict[AnimKey, AnimInfo] = {}
 
+    from unit_animation_engine.main_engine import MainAnimationEngine
     main_engine: MainAnimationEngine
 
     def __init__(self, unit: Unit):

@@ -1,58 +1,11 @@
-import struct
-from copy import copy
 from pathlib import Path
 
 import moderngl
-import moderngl_window as mglw
-from moderngl_window import geometry as mglw_geometry
-from moderngl_window.opengl.vao import VAO
-from moderngl_window.scene.camera import KeyboardCamera
 from pyglm import glm
-import numpy as np
 
 from animation_viewer.texture_dds import TextureDDS
+from animation_viewer.unorganized_utils import build_vao_from_s3o_model, transforms_from_s3o_model, CameraWindow
 from unit_animation_engine.s3o import S3OModel
-
-
-class CameraWindow(mglw.WindowConfig):
-    """Base class with built-in 3D camera support"""
-
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self.camera = KeyboardCamera(
-            self.wnd.keys,
-            aspect_ratio=self.wnd.aspect_ratio,
-            fov=45.0,
-            near=0.1,
-            far=1000.0,
-        )
-        self.camera.velocity *= 4
-        self.camera_enabled = True
-
-    def on_key_event(self, key, action, modifiers):
-        keys = self.wnd.keys
-
-        if self.camera_enabled:
-            self.camera.key_input(key, action, modifiers)
-
-        if action == keys.ACTION_PRESS:
-            if key == keys.C:
-                self.camera_enabled = not self.camera_enabled
-                self.wnd.mouse_exclusivity = self.camera_enabled
-                self.wnd.cursor = not self.camera_enabled
-            if key == keys.SPACE:
-                self.timer.toggle_pause()
-
-    def on_mouse_position_event(self, x: int, y: int, dx, dy):
-        if self.camera_enabled:
-            self.camera.rot_state(-dx, -dy)
-
-    def on_resize(self, width: int, height: int):
-        self.camera.projection.update(aspect_ratio=self.wnd.aspect_ratio)
-
-    def on_mouse_scroll_event(self, x_offset: float, y_offset: float) -> None:
-        velocity = self.camera.velocity + y_offset
-        self.camera.velocity = max(velocity, 1.0)
 
 
 class MGLWindow(CameraWindow):
@@ -65,6 +18,7 @@ class MGLWindow(CameraWindow):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.wnd.mouse_exclusivity = True
+        self.camera.velocity *= 4
         self.camera.position = glm.vec3(0, 0, 100)
 
         self.prog = self.load_program(
@@ -79,42 +33,12 @@ class MGLWindow(CameraWindow):
             self.leg_color_texture = TextureDDS.from_bytes(f.read())
         self.leg_color_texture.load_into_opengl()
 
-
-        vertex_data = []
-        indices = []
-        piece_id_map = {}
-        matrix_data = bytearray()
-
-        for piece_id, piece in enumerate(self.s3o_legcom.pieces()):
-            piece_id_map[piece] = piece_id
-
-            piece_offset = piece.parent_offset
-            parent = piece.parent
-            while parent:
-                piece_offset = piece_offset + parent.parent_offset
-                parent = parent.parent
-            matrix_data.extend(glm.translate(piece_offset).to_bytes())
-
-            index_offset = len(vertex_data)
-            indices.extend(struct.pack('l', idx + index_offset) for idx in piece.indices)
-
-            for vertex in piece.vertices:
-                vertex_bytes = (
-                    vertex.position.to_bytes() + vertex.normal.to_bytes() + vertex.tex_coords.to_bytes()
-                    + glm.ivec2(piece_id, piece_id_map.get(piece.parent, -1)).to_bytes()
-                )
-                vertex_data.append(vertex_bytes)
-
-        piece_matrices_buffer = self.ctx.buffer(matrix_data)
-        piece_matrices_buffer.bind_to_storage_buffer(0)
-
-        self.legcom_vao = VAO("geometry:legcom")
-        self.legcom_vao.buffer(
-            b''.join(vertex_data),
-            '3f4 3f4 2f4 2i4',
-            ['in_position', 'in_normal', 'in_uv', 'in_piece_info']
-        )
-        self.legcom_vao.index_buffer(b''.join(indices))
+        self.legcom_transforms = transforms_from_s3o_model(self.s3o_legcom)
+        self.legcom_vao = build_vao_from_s3o_model("legcom", self.s3o_legcom)
+        self.piece_matrices_data = bytearray()
+        for transform in self.legcom_transforms.values():
+            self.piece_matrices_data.extend(transform.model_space_matrix.to_bytes())
+        self.piece_matrices_buffer = self.ctx.buffer(self.piece_matrices_data)
 
     def on_render(self, time: float, frametime: float):
         self.ctx.enable_only(moderngl.CULL_FACE | moderngl.DEPTH_TEST)
@@ -125,6 +49,23 @@ class MGLWindow(CameraWindow):
         self.prog["u_view"].write(self.camera.matrix)
         self.prog["u_model"].write(model_view)
         self.prog["u_normal_matrix"].write(glm.transpose(glm.inverse(glm.mat3(model_view))))
+
+        pelvis_transform = self.legcom_transforms[self.s3o_legcom.find_piece("pelvis")]
+        pelvis_transform.rotation.y += glm.radians(50 * frametime)
+
+        torso_transform = self.legcom_transforms[self.s3o_legcom.find_piece("torso")]
+        torso_transform.rotation.y -= glm.radians(50 * frametime)
+
+        head_transform = self.legcom_transforms[self.s3o_legcom.find_piece("head")]
+        head_transform.rotation.y -= glm.radians(50 * frametime)
+
+        self.piece_matrices_data = bytearray()
+        for transform in self.legcom_transforms.values():
+            self.piece_matrices_data.extend(transform.model_space_matrix.to_bytes())
+
+        self.piece_matrices_buffer.clear()
+        self.piece_matrices_buffer.write(self.piece_matrices_data)
+        self.piece_matrices_buffer.bind_to_storage_buffer(0)
 
         self.leg_color_texture.use()
         self.legcom_vao.render(self.prog)

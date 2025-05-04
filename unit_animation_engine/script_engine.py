@@ -1,9 +1,13 @@
+from __future__ import annotations
+from typing import TYPE_CHECKING
+
 from abc import ABC, abstractmethod
 from typing import TypeVar
 
-from unit_animation_engine.main_engine import MainAnimationEngine
-from unit_animation_engine.types import AnimKey
-from unit_animation_engine.unit import Unit
+if TYPE_CHECKING:
+    from unit_animation_engine.main_engine import MainAnimationEngine
+    from unit_animation_engine.types import AnimKey
+    from unit_animation_engine.unit import Unit
 
 
 class ScriptEngine(ABC):

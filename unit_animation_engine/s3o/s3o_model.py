@@ -229,3 +229,9 @@ class S3OModel:
 
         traverse(self.root_piece)
         return pieces
+
+    def find_piece(self, search_name: str) -> S3OPiece | None:
+        for piece in self.pieces():
+            if piece.name == search_name:
+                return piece
+        return None
