@@ -2,8 +2,7 @@ from dataclasses import dataclass
 from enum import IntEnum
 from typing import NewType, NamedTuple
 
-from unit_animation_engine import math
-from unit_animation_engine.math import RadiansPerFrame, Axis, radians
+from unit_animation_engine.math import RadiansPerSecond, Axis, radians
 
 PieceIndex = NewType("PieceIndex", int)
 PieceIndex_NONE = PieceIndex(-1)
@@ -42,7 +41,7 @@ class AnimKey(NamedTuple):
     """
     anim_type: AnimType
     piece: ScriptPieceIndex
-    axis: math.Axis
+    axis: Axis
 
 
 @dataclass
@@ -56,13 +55,10 @@ class AnimInfo:
     axis: Axis = 0
     speed: float | radians = 0
     dest: float | radians = 0
-    accel: RadiansPerFrame = 0
+    accel: RadiansPerSecond = 0
     done: bool = False
     has_waiting: bool = False
 
     def get_anim_key(self) -> AnimKey:
         """ Get a key used to index/deduplicate this animation info"""
         return AnimKey(self.anim_type, self.piece, self.axis)
-
-
-

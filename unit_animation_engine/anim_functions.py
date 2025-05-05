@@ -1,10 +1,18 @@
 from unit_animation_engine import math
-from unit_animation_engine.math import radians, RadiansPerFrame
+from unit_animation_engine.math import (
+    milliseconds,
+    float_per_second,
+    radians,
+    radians_per_second,
+    radians_per_second_per_second,
+)
 
 
 def move_toward_target_position(
-    current_position: float, target_position: float, speed: float,
-    delta_time_ms: int
+    current_position: float,
+    target_position: float,
+    speed: float_per_second,
+    delta_time_ms: milliseconds
 ) -> tuple[float, bool]:
     """
     Updates move animations
@@ -14,25 +22,27 @@ def move_toward_target_position(
     :param delta_time_ms: time since last tick (usually a fixed rate)
     :return: new position, True if destination was reached
     """
+    speed = math.abs(speed)
 
-    # Calculate tick rate and per-tick speed
     tick_rate = math.milliseconds_to_tick_rate(delta_time_ms)
     speed_per_tick = speed / tick_rate
 
     # Calculate the distance to the target position
     delta_position = target_position - current_position
 
-    # Check if the target is within reach
+    # If the target would be overshot, snap to target
     if math.abs(delta_position) < speed_per_tick:
         return target_position, True
 
-    # Update the current position
+    # Return updated position
     return current_position + (speed_per_tick * math.sign(delta_position)), False
 
 
 def turn_toward_target_position(
-    current_angle: radians, target_angle: radians, speed: radians,
-    delta_time_ms: int
+    current_angle: radians,
+    target_angle: radians,
+    speed: radians_per_second,
+    delta_time_ms: milliseconds
 ) -> tuple[radians, bool]:
     """
     Updates turn animations
@@ -42,29 +52,35 @@ def turn_toward_target_position(
     :param delta_time_ms: time since last tick (usually a fixed rate)
     :return new rotation, True if destination was reached
     """
-    # Normalize angles to ensure they are within [0, 2π)
     current_angle = math.clamp_rad(current_angle)
     target_angle = math.clamp_rad(target_angle)
+    speed = math.abs(speed)
 
-    # Calculate tick rate and per-tick speed
     tick_rate = math.milliseconds_to_tick_rate(delta_time_ms)
-    speed_per_tick = speed / tick_rate
 
-    # Calculate the shortest path to the target angle
+    # Visualization:
+    #   Isaac (https://math.stackexchange.com/users/72/isaac),
+    #   Shortest way to achieve target angle,
+    #   URL (version: 2012-02-17): https://math.stackexchange.com/q/110236
     delta = math.mod(target_angle - current_angle + math.THREE_PI, math.TWO_PI) - math.PI
 
-    # Check if the target is within reach
+    speed_per_tick = speed / tick_rate
+
+    # If the target would be overshot, snap to target
     if math.abs(delta) < speed_per_tick:
         return target_angle, True
 
-    # Update the current angle and normalize it
+    # Return updated angle
     return math.clamp_rad(current_angle + (speed_per_tick * math.sign(delta))), False
 
 
 def spin_towards_target_speed(
-    current_angle: radians, target_speed: radians, current_speed: radians, accel: RadiansPerFrame,
-    delta_time_ms: int
-) -> tuple[radians, radians, bool]:
+    current_angle: radians,
+    target_speed: radians_per_second,
+    current_speed: radians_per_second,
+    accel: radians_per_second_per_second,
+    delta_time_ms: milliseconds
+) -> tuple[radians, radians_per_second, bool]:
     """
     Updates spin animations
     :param current_angle: current angle
@@ -74,28 +90,30 @@ def spin_towards_target_speed(
     :param delta_time_ms: time since last tick (usually a fixed rate)
     :return: new rotation angle, new speed, True if target speed was reached AND it was zero (animation finished)
     """
-    # Normalize the current angle to ensure it is within [0, 2π)
     current_angle = math.clamp_rad(current_angle)
+    accel = math.abs(accel)
 
-    # Calculate tick rate and per-tick values
     tick_rate = math.milliseconds_to_tick_rate(delta_time_ms)
+
     target_speed_per_tick = target_speed / tick_rate
     speed_per_tick = current_speed / tick_rate
     accel_per_tick = accel / tick_rate
 
-    # Update speed towards the target speed
-    delta_speed = target_speed_per_tick - speed_per_tick
-    if math.abs(delta_speed) <= accel_per_tick:
-        current_speed = target_speed
-        speed_per_tick = target_speed_per_tick
+    delta_speed_per_tick = target_speed_per_tick - speed_per_tick
+
+    # If target would be overshot, snap to target
+    if math.abs(delta_speed_per_tick) <= accel_per_tick:
+        new_speed = target_speed
     else:
-        current_speed += accel_per_tick * math.sign(delta_speed)
-        speed_per_tick = current_speed / tick_rate
+        new_speed = current_speed + (accel_per_tick * math.sign(delta_speed_per_tick))
+
+    # recalculate speed_per_tick after update
+    new_speed_per_tick = new_speed / tick_rate
 
     # Update angle based on the new speed
-    current_angle = math.clamp_rad(current_angle + speed_per_tick)
+    new_angle = math.clamp_rad(current_angle + new_speed_per_tick)
 
     # Check if the target speed is reached and is zero
     # (the animation is finished ONLY if the spinning has completely stopped)
-    animation_finished = (current_speed == 0 and target_speed == 0)
-    return current_angle, current_speed, animation_finished
+    animation_finished = (new_speed == 0 and target_speed == 0)
+    return new_angle, new_speed, animation_finished

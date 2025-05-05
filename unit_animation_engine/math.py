@@ -14,7 +14,12 @@ float3: TypeAlias = glm.f32vec3
 radians: TypeAlias = float
 radians3: TypeAlias = glm.f32vec3
 
-RadiansPerFrame: TypeAlias = radians
+milliseconds: TypeAlias = int
+float_per_second: TypeAlias = float
+float_per_second_per_second: TypeAlias = float
+
+radians_per_second: TypeAlias = radians
+radians_per_second_per_second: TypeAlias = radians
 
 UP_VECTOR: Final[float3] = float3(0.0, 1.0, 0.0)
 FORWARD_VECTOR: Final[float3] = float3(0.0, 0.0, 1.0)
@@ -89,7 +94,7 @@ def unpack_xz(xz: uint32) -> tuple[uint32, uint32]:
     return unpack_x(xz), unpack_z(xz)
 
 
-def milliseconds_to_tick_rate(delta_time_ms: int) -> int:
+def milliseconds_to_tick_rate(delta_time_ms: milliseconds) -> int:
     """
     given a time in milliseconds, returns the number of ticks per second (tick rate).
 

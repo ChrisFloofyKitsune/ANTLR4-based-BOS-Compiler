@@ -10,7 +10,7 @@ from unit_animation_engine.anim_functions import (
 )
 from unit_animation_engine.local_model_piece import LocalModelPiece, TickAnimFunc
 from unit_animation_engine.exceptions import UnitEngineError
-from unit_animation_engine.math import radians, RadiansPerFrame
+from unit_animation_engine.math import radians, RadiansPerSecond
 from unit_animation_engine.types import (
     AnimType,
     AnimInfo,
@@ -85,7 +85,7 @@ class Animator:
         axis: math.Axis,
         speed: float,
         dest: float,
-        accel: RadiansPerFrame,
+        accel: RadiansPerSecond,
     ) -> None:
         if not self._piece_exists_guard(piece):
             return
