@@ -4,7 +4,8 @@ import moderngl
 from pyglm import glm
 
 from animation_viewer.texture_dds import TextureDDS
-from animation_viewer.unorganized_utils import build_vao_from_s3o_model, transforms_from_s3o_model, CameraWindow
+from animation_viewer.s3o_utils import build_vao_from_s3o_model, transforms_from_s3o_model
+from animation_viewer.camera_window import CameraWindow
 from unit_animation_engine.s3o import S3OModel
 
 
@@ -35,6 +36,7 @@ class MGLWindow(CameraWindow):
 
         self.legcom_transforms = transforms_from_s3o_model(self.s3o_legcom)
         self.legcom_vao = build_vao_from_s3o_model("legcom", self.s3o_legcom)
+
         self.piece_matrices_data = bytearray()
         for transform in self.legcom_transforms.values():
             self.piece_matrices_data.extend(transform.model_space_matrix.to_bytes())

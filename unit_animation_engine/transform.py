@@ -1,67 +1,10 @@
 from __future__ import annotations
 
-from copy import copy, deepcopy
-from typing import TypeVar, Generic, Callable, Final
-
 from pyglm import glm
 
+from unit_animation_engine.watched_value import WatchedValue
 from unit_animation_engine import math
 from unit_animation_engine.math import float3, radians3, matrix44
-
-T = TypeVar("T")
-
-class WatchedValue(Generic[T]):
-    NO_VALUE: Final = object()
-
-    name: str
-    storage_name: str
-    default: T | None
-
-    def __init__(self, default: T | None = None):
-        self.default = default
-
-    def __set_name__(self, owner, name):
-        self.name = name
-        self.storage_name = "_value_" + name
-
-    def __get__(self, instance, owner=None):
-        if instance is None:
-            return self
-
-        val = self._value(instance)
-        if self._stored_value(instance) is WatchedValue.NO_VALUE:
-            self._set_stored_value(instance, val)
-
-        return val
-
-    def __set__(self, instance: object, value):
-        self._set_value(instance, value)
-
-    def _value(self, instance: object) -> T | None:
-        val = instance.__dict__.get(self.name)
-        if val is None:
-            new_val = deepcopy(self.default)
-            instance.__dict__[self.name] = new_val
-            return new_val
-        else:
-            return val
-
-    def _set_value(self, instance: object, value: T) -> None:
-        instance.__dict__[self.name] = deepcopy(value)
-
-    def _stored_value(self, instance: object) -> T | WatchedValue.NO_VALUE:
-        return instance.__dict__.get(self.storage_name, WatchedValue.NO_VALUE)
-
-    def _set_stored_value(self, instance: object, value: T) -> None:
-        instance.__dict__[self.storage_name] = deepcopy(value)
-
-    def check_dirty(self, instance: object) -> bool:
-        if self._stored_value(instance) is WatchedValue.NO_VALUE:
-            return False
-        return self._stored_value(instance) != self._value(instance)
-
-    def clear_dirty(self, instance: object) -> None:
-        self._set_stored_value(instance, WatchedValue.NO_VALUE)
 
 class Transform:
     """
@@ -82,6 +25,8 @@ class Transform:
     """ The rotation of the transform in local space (in radians). """
     scale = WatchedValue[float3]()
     """ The scale of the transform in local space. """
+
+    base_matrix: matrix44
 
     _parent: Transform | None
     """ The parent transform, if any. """
@@ -170,6 +115,7 @@ class Transform:
         Remove the parent transform.
         """
         self.parent = None
+        self._set_dirty()
 
     @property
     def children(self) -> list[Transform]:
@@ -312,7 +258,7 @@ class Transform:
             )
             scaling = glm.scale(self.scale)
 
-            return translation @ rotation @ scaling
+            return self.base_matrix @ translation @ rotation @ scaling
         except Exception as e:
             print(f"Error calculating local space matrix: {e}")
             return glm.identity(glm.mat4)
@@ -323,6 +269,7 @@ class Transform:
         position: float3 = float3(0),
         rotation: radians3 = radians3(0),
         scale: float3 = float3(1),
+        base_matrix: matrix44 = None,
         parent: Transform | None = None,
         children: list[Transform] = None,
     ):
@@ -340,6 +287,8 @@ class Transform:
         self.position = position
         self.rotation = rotation
         self.scale = scale
+
+        self.base_matrix = base_matrix or glm.identity(glm.mat4)
 
         self._parent = parent
         if self._parent:
