@@ -13,6 +13,7 @@ def build_vao_from_s3o_model(model_name, s3o_model):
     vertex_data = []
     indices = []
     piece_id_map = {}
+
     for piece_id, piece in enumerate(s3o_model.pieces()):
         piece_id_map[piece] = piece_id
 
@@ -31,6 +32,7 @@ def build_vao_from_s3o_model(model_name, s3o_model):
                 + glm.ivec2(piece_id, piece_id_map.get(piece.parent, -1)).to_bytes()
             )
             vertex_data.append(vertex_bytes)
+
     vao = VAO(f"geometry:{model_name}")
     vao.buffer(
         b''.join(vertex_data),
