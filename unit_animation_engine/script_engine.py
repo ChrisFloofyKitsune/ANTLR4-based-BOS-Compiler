@@ -6,7 +6,7 @@ from typing import TypeVar
 
 if TYPE_CHECKING:
     from unit_animation_engine.main_engine import MainAnimationEngine
-    from unit_animation_engine.types import AnimKey
+    from unit_animation_engine.types_ import AnimKey
     from unit_animation_engine.unit import Unit
 
 

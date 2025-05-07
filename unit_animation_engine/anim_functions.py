@@ -1,36 +1,34 @@
 from unit_animation_engine import math
 from unit_animation_engine.math import (
-    milliseconds,
-    float_per_second,
+    float_velocity,
     radians,
-    radians_per_second,
-    radians_per_second_per_second,
+    radians_velocity,
+    radians_accel, ticks_per_second,
 )
 
 
 def move_toward_target_position(
     current_position: float,
     target_position: float,
-    speed: float_per_second,
-    delta_time_ms: milliseconds
+    speed: float_velocity,
+    tick_rate: ticks_per_second
 ) -> tuple[float, bool]:
     """
     Updates move animations
     :param current_position: position to update
     :param target_position: target position
     :param speed: change in position per second
-    :param delta_time_ms: time since last tick (usually a fixed rate)
+    :param tick_rate: number of ticks per second
     :return: new position, True if destination was reached
     """
     speed = math.abs(speed)
 
-    tick_rate = math.milliseconds_to_tick_rate(delta_time_ms)
     speed_per_tick = speed / tick_rate
 
     # Calculate the distance to the target position
     delta_position = target_position - current_position
 
-    # If the target would be overshot, snap to target
+    # If target would be overshot, snap to target
     if math.abs(delta_position) < speed_per_tick:
         return target_position, True
 
@@ -41,22 +39,20 @@ def move_toward_target_position(
 def turn_toward_target_position(
     current_angle: radians,
     target_angle: radians,
-    speed: radians_per_second,
-    delta_time_ms: milliseconds
+    speed: radians_velocity,
+    tick_rate: ticks_per_second
 ) -> tuple[radians, bool]:
     """
     Updates turn animations
     :param current_angle: current angle
     :param target_angle: target angle
     :param speed: change in value per second
-    :param delta_time_ms: time since last tick (usually a fixed rate)
+    :param tick_rate: number of ticks per second
     :return new rotation, True if destination was reached
     """
     current_angle = math.clamp_rad(current_angle)
     target_angle = math.clamp_rad(target_angle)
     speed = math.abs(speed)
-
-    tick_rate = math.milliseconds_to_tick_rate(delta_time_ms)
 
     # Visualization:
     #   Isaac (https://math.stackexchange.com/users/72/isaac),
@@ -66,7 +62,7 @@ def turn_toward_target_position(
 
     speed_per_tick = speed / tick_rate
 
-    # If the target would be overshot, snap to target
+    # If target would be overshot, snap to target
     if math.abs(delta) < speed_per_tick:
         return target_angle, True
 
@@ -76,28 +72,26 @@ def turn_toward_target_position(
 
 def spin_towards_target_speed(
     current_angle: radians,
-    target_speed: radians_per_second,
-    current_speed: radians_per_second,
-    accel: radians_per_second_per_second,
-    delta_time_ms: milliseconds
-) -> tuple[radians, radians_per_second, bool]:
+    target_speed: radians_velocity,
+    current_speed: radians_velocity,
+    accel: radians_accel,
+    tick_rate: ticks_per_second
+) -> tuple[radians, radians_velocity, bool]:
     """
     Updates spin animations
     :param current_angle: current angle
     :param target_speed: the final desired speed (NOT the final angle!)
     :param current_speed: value change per second
     :param accel: change in speed per second
-    :param delta_time_ms: time since last tick (usually a fixed rate)
+    :param tick_rate: number of ticks per second
     :return: new rotation angle, new speed, True if target speed was reached AND it was zero (animation finished)
     """
     current_angle = math.clamp_rad(current_angle)
     accel = math.abs(accel)
 
-    tick_rate = math.milliseconds_to_tick_rate(delta_time_ms)
-
-    target_speed_per_tick = target_speed / tick_rate
-    speed_per_tick = current_speed / tick_rate
     accel_per_tick = accel / tick_rate
+    speed_per_tick = current_speed / tick_rate
+    target_speed_per_tick = target_speed / tick_rate
 
     delta_speed_per_tick = target_speed_per_tick - speed_per_tick
 

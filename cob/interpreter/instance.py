@@ -1,3 +1,17 @@
+from typing import override, Sequence
+
+from cob.cob_file import CobFile
+from cob.interpreter.thread import CobThread
+from cob.interpreter.types_ import ThreadCallbackType
+from script_hook_function import ScriptHookFunction
+from unit_animation_engine.math import uint32, MAX_COB_ARGS, float3
+from unit_animation_engine.types_ import (
+    WeaponIndex, FunctionIndex, WeaponDefId, ScriptPieceIndex, UnitId, ValueIndex,
+    AnimType, Axis,
+)
+from unit_animation_engine.unit import Unit
+
+
 class CobInstance(UnitScript):
 
     def _map_script_to_model_pieces(self, local_model: LocalModel) -> None:
@@ -9,7 +23,7 @@ class CobInstance(UnitScript):
 
     cob_file: CobFile
 
-    static_vars: list[math.uint32]
+    static_vars: list[uint32]
 
     thread_ids: list[int]
 
@@ -120,19 +134,19 @@ class CobInstance(UnitScript):
         pass
 
     @override
-    def world_rock_unit(self, rock_dir: math.float3) -> None:
+    def world_rock_unit(self, rock_dir: float3) -> None:
         pass
 
     @override
-    def rock_unit(self, rock_dir: math.float3) -> None:
+    def rock_unit(self, rock_dir: float3) -> None:
         pass
 
     @override
-    def world_hit_by_weapon(self, hit_dir: math.float3, weapon_def_id: WeaponDefId, damage: float) -> float:
+    def world_hit_by_weapon(self, hit_dir: float3, weapon_def_id: WeaponDefId, damage: float) -> float:
         pass
 
     @override
-    def hit_by_weapon(self, hit_dir: math.float3, weapon_def_id: WeaponDefId, damage: float) -> float:
+    def hit_by_weapon(self, hit_dir: float3, weapon_def_id: WeaponDefId, damage: float) -> float:
         pass
 
     @override
@@ -140,7 +154,7 @@ class CobInstance(UnitScript):
         pass
 
     @override
-    def query_landing_pads(self) -> Sequence[PieceIndex]:
+    def query_landing_pads(self) -> Sequence[ScriptPieceIndex]:
         pass
 
     @override
@@ -160,7 +174,7 @@ class CobInstance(UnitScript):
         pass
 
     @override
-    def _shatter_impl(self, piece: ScriptPieceIndex, pos: math.float3, speed: math.float3) -> None:
+    def _shatter_impl(self, piece: ScriptPieceIndex, pos: float3, speed: float3) -> None:
         pass
 
     @override
@@ -176,9 +190,10 @@ class CobInstance(UnitScript):
         pass
 
     @override
-    def perform_call_in(self, script_hook_function: ScriptHookFunction, args: list[math.uint32]) -> list[math.uint32]:
+    def perform_call_in(self, script_hook_function: ScriptHookFunction, args: list[uint32]) -> list[uint32]:
         function_id = self.cob_file.get_function_id(script_hook_function)
+        raise NotImplementedError()
 
     @override
-    def anim_finished(self, anim_type: AnimType, piece: PieceIndex, axis: math.Axis) -> None:
+    def anim_finished(self, anim_type: AnimType, piece: ScriptPieceIndex, axis: Axis) -> None:
         pass

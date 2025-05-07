@@ -8,7 +8,7 @@ from typing import NamedTuple, cast
 
 from cob.interpreter.instance import CobInstance
 from cob.interpreter.thread import CobThread
-from cob.interpreter.types import ThreadId
+from cob.interpreter.types_ import ThreadId
 from unit_animation_engine.exceptions import UnitEngineError
 
 LOG = logging.getLogger(__name__)

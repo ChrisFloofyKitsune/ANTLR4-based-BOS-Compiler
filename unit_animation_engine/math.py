@@ -1,25 +1,27 @@
-from enum import IntEnum
-from typing import Final, TypeAlias
+from typing import Final, TypeAlias, NewType
 
 from pyglm import glm
 
-SIM_SPEED: Final[int] = 30
-INV_SIM_SPEED: Final[float] = 1.0 / SIM_SPEED
+TicksPerSecond = NewType(int)
+
+SIM_SPEED: Final[TicksPerSecond] = 30
 
 int32: TypeAlias = glm.int32
 uint32: TypeAlias = glm.uint32
 
+float_velocity: TypeAlias = float
+float_accel: TypeAlias = float
+
 float2: TypeAlias = glm.f32vec2
 float3: TypeAlias = glm.f32vec3
+
 radians: TypeAlias = float
+radians_velocity: TypeAlias = radians
+radians_accel: TypeAlias = radians
+
 radians3: TypeAlias = glm.f32vec3
 
 milliseconds: TypeAlias = int
-float_per_second: TypeAlias = float
-float_per_second_per_second: TypeAlias = float
-
-radians_per_second: TypeAlias = radians
-radians_per_second_per_second: TypeAlias = radians
 
 UP_VECTOR: Final[float3] = float3(0.0, 1.0, 0.0)
 FORWARD_VECTOR: Final[float3] = float3(0.0, 0.0, 1.0)
@@ -61,12 +63,6 @@ normalize = glm.normalize
 mod = lambda a, b: a - b * floor(a / b)
 
 
-class Axis(IntEnum):
-    X = 0
-    Y = 1
-    Z = 2
-
-
 def clamp_rad(f: radians) -> radians:
     f += 0.0  # eliminate -0.0
     f = f - TWO_PI * floor(f / TWO_PI)
@@ -94,13 +90,37 @@ def unpack_xz(xz: uint32) -> tuple[uint32, uint32]:
     return unpack_x(xz), unpack_z(xz)
 
 
-def milliseconds_to_tick_rate(delta_time_ms: milliseconds) -> int:
+def milliseconds_to_tick_rate(delta_time_ms: milliseconds) -> TicksPerSecond:
     """
     given a time in milliseconds, returns the number of ticks per second (tick rate).
 
     this is inverse delta_time (1/delta_time)
     therefore, dividing by this is the same as multiplying by delta_time
+
     :param delta_time_ms:
     :return:
     """
     return 1000 // delta_time_ms
+
+"""
+    SIM_SPEED = 30 TPS
+
+    30 ticks    1 second     30 ticks
+    ---per--- * ---per--- => ---per--- 
+    1 second    1000 ms      1000 ms
+
+    30 ticks       1 tick
+    ---per--- => ---per---
+    1000 ms        33 ms
+    
+    
+    what milliseconds_to_tick_rate() is doing
+    1000 ms    1 tick      30 ticks
+    -------- * ---per-- => --------
+    1 second   33ms        1 second
+    
+    what's basically happening inside the Tick Anim functions
+    XXX units    1 second    XXX/30 units
+    ---------- * -------- ~= --------
+    1 second     30 ticks     1 tick
+"""

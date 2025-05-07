@@ -7,7 +7,7 @@ if TYPE_CHECKING:
     from unit_animation_engine.animator import Animator
 from unit_animation_engine.exceptions import UnitEngineError
 from unit_animation_engine.script_engine import ScriptEngine, ScriptEngineT
-from unit_animation_engine.types import AnimKey
+from unit_animation_engine.types_ import AnimKey
 from unit_animation_engine.unit import Unit
 
 log = logging.getLogger(__name__)
@@ -100,7 +100,7 @@ class MainAnimationEngine:
         for animator in anims_to_tick:
             self.__current_animator = animator
             # this may end up calling into unit scripts that were waiting on this animation
-            animator.tick_anim_finished(delta_time_ms)
+            animator.tick_anim_finished()
             if not animator.have_animations():
                 self.__active_animators.remove(animator)
         self.__current_animator = None
