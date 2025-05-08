@@ -10,7 +10,7 @@ from unit_animation_engine.anim_functions import (
 )
 from unit_animation_engine.exceptions import UnitEngineError
 from unit_animation_engine.local_model_piece import LocalModelPiece
-from unit_animation_engine.math import radians, radians_accel, TicksPerSecond
+from unit_animation_engine.math import radians, radians_accel, ticks_per_second
 from unit_animation_engine.types_ import (
     Axis,
     AnimType,
@@ -192,13 +192,13 @@ class Animator:
         return self._unit
 
     @staticmethod
-    def tick_invalid_anim(tick_rate: TicksPerSecond, lmp: LocalModelPiece, ai: AnimInfo) -> bool:
+    def tick_invalid_anim(tick_rate: ticks_per_second, lmp: LocalModelPiece, ai: AnimInfo) -> bool:
         raise UnitEngineError(
             f"Invalid animation type {ai.key.anim_type} for piece {ai.key.piece} on axis {ai.key.axis} was attempted to be ticked"
         )
 
     @staticmethod
-    def tick_move_anim(tick_rate: TicksPerSecond, lmp: LocalModelPiece, ai: AnimInfo) -> bool:
+    def tick_move_anim(tick_rate: ticks_per_second, lmp: LocalModelPiece, ai: AnimInfo) -> bool:
         pos: math.float3 = lmp.position
         pos[ai.key.axis], done = move_toward_target_position(
             pos[ai.key.axis], ai.target, ai.velocity,
@@ -208,7 +208,7 @@ class Animator:
         return done
 
     @staticmethod
-    def tick_turn_anim(tick_rate: TicksPerSecond, lmp: LocalModelPiece, ai: AnimInfo) -> bool:
+    def tick_turn_anim(tick_rate: ticks_per_second, lmp: LocalModelPiece, ai: AnimInfo) -> bool:
         rot: math.radians3 = lmp.rotation
         rot[ai.key.axis] = math.clamp_rad(rot[ai.key.axis])
         rot[ai.key.axis], done = turn_toward_target_position(
@@ -219,7 +219,7 @@ class Animator:
         return done
 
     @staticmethod
-    def tick_spin_anim(tick_rate: TicksPerSecond, lmp: LocalModelPiece, ai: AnimInfo) -> bool:
+    def tick_spin_anim(tick_rate: ticks_per_second, lmp: LocalModelPiece, ai: AnimInfo) -> bool:
         rot: math.radians3 = lmp.rotation
         rot[ai.key.axis] = math.clamp_rad(rot[ai.key.axis])
         rot[ai.key.axis], ai.velocity, done = spin_towards_target_speed(
@@ -235,7 +235,7 @@ class Animator:
         AnimType.Move: tick_move_anim,
     }
 
-    def tick_all_anims(self, tick_rate: TicksPerSecond) -> None:
+    def tick_all_anims(self, tick_rate: ticks_per_second) -> None:
         """
         The multithreaded first half of the UnitScript.Tick function first does the heavy lifting of calculating all
         new piece positions according to the animations

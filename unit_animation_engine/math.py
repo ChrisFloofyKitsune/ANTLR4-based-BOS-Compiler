@@ -2,9 +2,9 @@ from typing import Final, TypeAlias, NewType
 
 from pyglm import glm
 
-TicksPerSecond = NewType(int)
+ticks_per_second: TypeAlias = int
 
-SIM_SPEED: Final[TicksPerSecond] = 30
+SIM_SPEED: Final[ticks_per_second] = 30
 
 int32: TypeAlias = glm.int32
 uint32: TypeAlias = glm.uint32
@@ -90,7 +90,7 @@ def unpack_xz(xz: uint32) -> tuple[uint32, uint32]:
     return unpack_x(xz), unpack_z(xz)
 
 
-def milliseconds_to_tick_rate(delta_time_ms: milliseconds) -> TicksPerSecond:
+def milliseconds_to_tick_rate(delta_time_ms: milliseconds) -> ticks_per_second:
     """
     given a time in milliseconds, returns the number of ticks per second (tick rate).
 

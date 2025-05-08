@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 import struct
+from copy import copy
 from enum import Enum
 from typing import NamedTuple, Self
 
-
-from unit_animation_engine.math import float3, float2
 from unit_animation_engine import math
+from unit_animation_engine.math import float3, float2
 
 _S3OHeader_struct = struct.Struct("< 12s i 5f 4i")
 """
@@ -38,7 +38,8 @@ _S3OVertex_struct = struct.Struct("< 3f 3f 2f")
 _S3OChildOffset_struct = struct.Struct("< i")
 _S3OIndex_struct = struct.Struct("< i")
 
-def extract_null_terminated_string(data: bytes, offset: int) -> str:
+
+def _extract_null_terminated_string(data: bytes, offset: int) -> str:
     """
     :param data: raw bytes
     :param offset: offset into bytes
@@ -48,6 +49,7 @@ def extract_null_terminated_string(data: bytes, offset: int) -> str:
         return b"".decode()
     else:
         return data[offset:data.index(b'\x00', offset)].decode()
+
 
 class S3OVertex(NamedTuple):
     position: float3 = float3()
@@ -91,6 +93,8 @@ class S3OPiece:
     indices: list[int]
     primitive_type: PrimitiveType
 
+    index: int
+
     def __init__(self):
         self.name = 'unnamed'
 
@@ -102,6 +106,8 @@ class S3OPiece:
         self.vertices = list()
         self.indices = list()
         self.primitive_type = S3OPiece.PrimitiveType.Triangles
+
+        self.index = 0
 
     @classmethod
     def from_bytes(cls, data: bytes, offset: int, parent: 'S3OPiece | None' = None) -> Self:
@@ -115,7 +121,7 @@ class S3OPiece:
             index_offset, collision_data_offset, \
             x_offset, y_offset, z_offset = _S3OPiece_struct.unpack_from(data, offset)
 
-        piece.name = extract_null_terminated_string(data, name_offset)
+        piece.name = _extract_null_terminated_string(data, name_offset)
 
         piece.parent = parent
         piece.parent_offset = float3(x_offset, y_offset, z_offset)
@@ -145,19 +151,19 @@ class S3OPiece:
             child_offset, = _S3OChildOffset_struct.unpack_from(data, cur_offset)
             piece.children.append(S3OPiece.from_bytes(data, child_offset, piece))
 
+        piece.triangulate_faces()
+
         return piece
 
     def triangulate_faces(self):
-        idx_len = len(self.indices)
 
         match self.primitive_type:
             case S3OPiece.PrimitiveType.Triangles:
                 pass
             case S3OPiece.PrimitiveType.TriangleStrips:
+                idx_len = len(self.indices)
                 if idx_len < 3:
-                    self.primitive_type = S3OPiece.PrimitiveType.Triangles
-                    self.indices.clear()
-                    return
+                    raise ValueError("Invalid number of indices for triangle strip")
 
                 new_idx: list[int] = []
 
@@ -170,10 +176,9 @@ class S3OPiece:
                 self.indices = new_idx
 
             case S3OPiece.PrimitiveType.Quads:
-                if len(self.indices) % 4 != 0:
-                    self.primitive_type = S3OPiece.PrimitiveType.Triangles
-                    self.indices.clear()
-                    return
+                idx_len = len(self.indices)
+                if idx_len % 4 != 0:
+                    raise ValueError("Invalid number of indices for quads when")
 
                 new_idx: list[int] = []
                 for i in range(0, idx_len, 4):
@@ -191,6 +196,16 @@ class S3OModel:
     texture_path_1: str
     texture_path_2: str
     root_piece: S3OPiece
+
+    _index_lookup: list[S3OPiece]
+    _name_lookup: dict[str, S3OPiece]
+
+    @property
+    def pieces(self) -> list[S3OPiece]:
+        return copy(self._index_lookup)
+
+    def find_piece(self, name: str) -> S3OPiece | None:
+        return self._name_lookup.get(name)
 
     @classmethod
     def from_bytes(cls, data: bytes) -> Self:
@@ -210,28 +225,21 @@ class S3OModel:
         s3o.height = height
         s3o.midpoint = float3(mid_x, mid_y, mid_z)
 
-        s3o.texture_path_1 = extract_null_terminated_string(data, tex1_offset)
-        s3o.texture_path_2 = extract_null_terminated_string(data, tex2_offset)
+        s3o.texture_path_1 = _extract_null_terminated_string(data, tex1_offset)
+        s3o.texture_path_2 = _extract_null_terminated_string(data, tex2_offset)
 
         s3o.root_piece = S3OPiece.from_bytes(data, root_piece_offset)
 
-        s3o.root_piece.triangulate_faces()
-
-        return s3o
-
-    def pieces(self) -> list[S3OPiece]:
-        pieces = []
+        s3o._index_lookup = []
+        s3o._name_lookup = {}
 
         def traverse(piece: S3OPiece):
-            pieces.append(piece)
-            for child in piece.children:
-                traverse(child)
+            piece.index = len(s3o._index_lookup)
+            s3o._index_lookup.append(piece)
+            s3o._name_lookup[piece.name] = piece
+            for c in piece.children:
+                traverse(c)
 
-        traverse(self.root_piece)
-        return pieces
+        traverse(s3o.root_piece)
 
-    def find_piece(self, search_name: str) -> S3OPiece | None:
-        for piece in self.pieces():
-            if piece.name == search_name:
-                return piece
-        return None
+        return s3o
