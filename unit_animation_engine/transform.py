@@ -4,7 +4,7 @@ from copy import deepcopy
 
 from pyglm import glm
 
-from unit_animation_engine.watched_value import CheckpointValue
+from unit_animation_engine.checkpoint_value import CheckpointValue
 from unit_animation_engine import math
 from unit_animation_engine.math import float3, radians3, matrix44
 
