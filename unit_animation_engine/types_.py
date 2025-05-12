@@ -6,9 +6,13 @@ from typing import NamedTuple
 class IdWithName(int):
     name: str = ""
 
-    def __init__(self, value: int, name: str):
-        super(value)
-        self.name = name
+    def __new__(cls, value: int, name: str):
+        val = int.__new__(cls, value)
+        val.name = name
+        return val
+
+    def __repr__(self):
+        return f'{self.__class__.__name__}({int(self)}, "{self.name}")'
 
 
 # @formatter:off

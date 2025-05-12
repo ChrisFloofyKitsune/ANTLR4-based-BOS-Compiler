@@ -1,5 +1,6 @@
 import inspect
 import logging
+from copy import deepcopy
 from typing import Final, overload, TypeAlias, Callable
 
 from unit_animation_engine import math
@@ -9,7 +10,7 @@ from unit_animation_engine.anim_functions import (
     spin_towards_target_speed,
 )
 from unit_animation_engine.exceptions import UnitEngineError
-from unit_animation_engine.local_model_piece import LocalModelPiece
+from unit_animation_engine.local_model import LocalModelPiece
 from unit_animation_engine.math import radians, radians_accel, ticks_per_second
 from unit_animation_engine.types_ import (
     Axis,
@@ -159,11 +160,11 @@ class Animator:
         return self.pieces[script_piece_num]
 
     def script_to_model(self, script_piece_num: ScriptPieceIndex) -> ModelPieceIndex | None:
-        if not self.piece_exists(script_piece_num):
+        if not self._piece_exists_guard(script_piece_num):
             return None
 
         script_model_piece = self.get_script_local_model_piece(script_piece_num)
-        return script_model_piece.get_local_model_piece_index()
+        return script_model_piece.get_model_piece_index()
 
     def model_to_script(self, local_model_piece_num: ModelPieceIndex) -> ScriptPieceIndex | None:
         local_model = self._unit.local_model
@@ -174,14 +175,16 @@ class Animator:
         return local_model.get_piece(local_model_piece_num).get_script_piece_index()
 
     def get_piece_pos(self, piece: ScriptPieceIndex) -> math.float3:
-        if not self.piece_exists(piece):
+        if not self._piece_exists_guard(piece):
             return math.float3()
-        return self.get_script_local_model_piece(piece).get_absolute_pos()
+
+        lmp = self.get_script_local_model_piece(piece)
+        return lmp.get_offset() + lmp.position
 
     def get_piece_matrix(self, piece: ScriptPieceIndex) -> math.matrix44:
-        if not self.piece_exists(piece):
+        if not self._piece_exists_guard(piece):
             return math.matrix44()
-        return self.get_script_local_model_piece(piece).get_model_space_matrix()
+        return deepcopy(self.get_script_local_model_piece(piece).model_space_matrix)
 
     def get_emit_dir_pos(self, piece: ScriptPieceIndex) -> tuple[math.float3, math.float3] | tuple[None, None]:
         if not self._piece_exists_guard(piece):
@@ -204,7 +207,6 @@ class Animator:
             pos[ai.key.axis], ai.target, ai.velocity,
             tick_rate
         )
-        lmp.position = pos
         return done
 
     @staticmethod
@@ -215,18 +217,15 @@ class Animator:
             rot[ai.key.axis], ai.target, ai.velocity,
             tick_rate
         )
-        lmp.rotation = rot
         return done
 
     @staticmethod
     def tick_spin_anim(tick_rate: ticks_per_second, lmp: LocalModelPiece, ai: AnimInfo) -> bool:
         rot: math.radians3 = lmp.rotation
-        rot[ai.key.axis] = math.clamp_rad(rot[ai.key.axis])
         rot[ai.key.axis], ai.velocity, done = spin_towards_target_speed(
             rot[ai.key.axis], ai.target, ai.velocity, ai.accel,
             tick_rate
         )
-        lmp.rotation = rot
         return done
 
     __TICK_ANIM_FUNCS: Final[dict[AnimType, TickAnimFunc]] = {
@@ -313,26 +312,12 @@ class Animator:
     def move_now(self, piece: ScriptPieceIndex, axis: Axis, dest: float) -> None:
         if not self._piece_exists_guard(piece):
             return
-
-        lmp = self.pieces[piece]
-
-        pos = lmp.position
-        offset = lmp.get_original_offset()
-
-        pos[axis] = offset[axis] + dest
-
-        lmp.position = pos
+        self.pieces[piece].position[axis] = dest
 
     def turn_now(self, piece: ScriptPieceIndex, axis: Axis, dest: radians) -> None:
         if not self._piece_exists_guard(piece):
             return
-
-        lmp = self.pieces[piece]
-
-        rot = lmp.rotation
-        rot[axis] = math.clamp_rad(dest)
-
-        lmp.rotation = rot
+        self.pieces[piece].rotation[axis] = math.clamp_rad(dest)
 
     def wait_on_anim(self, anim_key: AnimKey) -> bool:
         """

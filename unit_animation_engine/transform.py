@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+from copy import deepcopy
+
 from pyglm import glm
 
-from unit_animation_engine.watched_value import WatchedValue
+from unit_animation_engine.watched_value import CheckpointValue
 from unit_animation_engine import math
 from unit_animation_engine.math import float3, radians3, matrix44
 
@@ -19,11 +21,11 @@ class Transform:
     _dirty: bool
     """ Flag indicating whether the transform needs to be recalculated. """
 
-    position = WatchedValue[float3]()
+    position = CheckpointValue[float3]()
     """ The position of the transform in local space. """
-    rotation = WatchedValue[float3]()
+    rotation = CheckpointValue[float3]()
     """ The rotation of the transform in local space (in radians). """
-    scale = WatchedValue[float3]()
+    scale = CheckpointValue[float3]()
     """ The scale of the transform in local space. """
 
     base_matrix: matrix44
@@ -40,29 +42,28 @@ class Transform:
 
     def _check_dirty(self):
         """
-        Check if the transform is dirty and needs to be recalculated.
+        Check if the transform is marked dirty or if the checkpoint values have changed.
 
-        :param clear_watched_values: If True, clear the watched values after checking.
+        If the checkpoint have changed, then _set_dirty() is called.
+
         :return: True if the transform is dirty, False otherwise.
         """
 
         if (
-            Transform.position.check_dirty(self)
-            or Transform.rotation.check_dirty(self)
-            or Transform.scale.check_dirty(self)
+            Transform.position.check_value_changed(self)
+            or Transform.rotation.check_value_changed(self)
+            or Transform.scale.check_value_changed(self)
         ):
             self._set_dirty()
 
         return self._dirty
 
     def _clear_dirty(self):
-        """
-        Clear the dirty flag and watched values.
-        """
+        """ Clear the dirty flag and checkpoint values. """
         self._dirty = False
-        Transform.position.clear_dirty(self)
-        Transform.rotation.clear_dirty(self)
-        Transform.scale.clear_dirty(self)
+        Transform.position.set_checkpoint(self)
+        Transform.rotation.set_checkpoint(self)
+        Transform.scale.set_checkpoint(self)
 
     def _set_dirty(self):
         """
@@ -70,7 +71,7 @@ class Transform:
         of the local and model space matrices the next time they are accessed.
 
         This method also marks all child transforms as dirty, ensuring that
-        the entire hierarchy is updated.
+        the entire downwards hierarchy is updated.
         """
         if self._dirty:
             return
@@ -81,17 +82,15 @@ class Transform:
 
     @property
     def parent(self) -> Transform | None:
-        """
-        Get the parent transform.
-
-        :return: The parent transform, or `None` if there is no parent.
-        """
+        """ :return: The parent transform, or `None` if there is no parent. """
         return self._parent
 
     @parent.setter
     def parent(self, value: Transform | None) -> None:
         """
         Set the parent transform.
+
+        Also adds self to the parent's children (and removes self from old parent's children, if it exists)
 
         :param value: The new parent transform, or `None` to remove the parent.
         :raises ValueError: If the transform is set as its own parent.
@@ -133,13 +132,13 @@ class Transform:
 
         :param value: A list of child transforms, or `None` to clear the children.
         """
+
+        # using .parent property here will do the necessary bookkeeping, calling add/remove_child()
         for child in self._children:
-            # using .parent property here will do the necessary bookkeeping
             child.parent = None
 
         self._children = value or []
         for child in self._children:
-            # using .parent property here will do the necessary bookkeeping
             child.parent = self
 
     @children.deleter
@@ -153,14 +152,13 @@ class Transform:
 
     def add_child(self, child: Transform) -> None:
         """
-        Add a child transform to this transform.
+        Add a child transform to this transform and marks it as dirty.
 
         :param child: The transform to add as a child.
         """
         if child not in self._children:
             self._children.append(child)
 
-            # avoid recursive calls, access _parent directly
             child._parent = self
             child._set_dirty()
 
@@ -168,14 +166,13 @@ class Transform:
 
     def remove_child(self, child: Transform) -> None:
         """
-        Remove a child transform from this transform.
+        Remove a child transform from this transform and marks it as dirty.
 
         :param child: The transform to remove as a child.
         """
         if child in self._children:
             self._children.remove(child)
 
-            # avoid recursive calls, access _parent directly
             child._parent = None
             child._set_dirty()
 
@@ -216,27 +213,29 @@ class Transform:
 
     def update_parent_matrices_recursively(self) -> None:
         """
-        Update the transformation matrices recursively, starting from the root
-        of the hierarchy. This ensures that all parent transforms are updated
-        before updating this transform.
+        Update the model and local space matrices for this transform.
+
+        First this function is called on the parent of this transform (and the parent of the parent... and so on).
+        This is to ensure that the entire hierarchy from this transform upwards is up to date before calculating the space matrices for this transform.
+
+        If this transform is not marked as dirty, it is skipped.
+        (This also means that if a parent is already up to date, the recursive calls upwards stop there.)
         """
 
         if not self._dirty:
             return
 
-        # Ensure the parent is updated first
+        # Recurse up the parent-child hierarchy first
         if self._parent and self._parent._dirty:
             self._parent.update_parent_matrices_recursively()
 
-        # Recalculate matrices for this transform
         self._local_space_matrix = self.calculate_local_space_matrix()
-        self._model_space_matrix = self._local_space_matrix
 
         if self._parent:
-            # Combine with parent transform's matrix
             self._model_space_matrix = self._parent.model_space_matrix @ self._local_space_matrix
+        else:
+            self._model_space_matrix = deepcopy(self._local_space_matrix)
 
-        # Mark this transform as clean
         self._clear_dirty()
 
     def calculate_local_space_matrix(self) -> matrix44:
@@ -274,7 +273,7 @@ class Transform:
         children: list[Transform] = None,
     ):
         """
-        Initialize a new Transform instance.
+        Initialize a new Transform instance. All params are keyword arguments.
 
         :param position: The initial position as a `float3` vector. Defaults to (0, 0, 0).
         :param rotation: The initial rotation as a `radians3` vector. Defaults to (0, 0, 0).

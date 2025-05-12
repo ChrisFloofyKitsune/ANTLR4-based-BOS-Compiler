@@ -6,7 +6,7 @@ from typing import TypeVar, Generic, Final
 T = TypeVar("T")
 
 
-class WatchedValue(Generic[T]):
+class CheckpointValue(Generic[T]):
     _NO_CHECKPOINT_VALUE: Final = object()
 
     _name: str
@@ -23,38 +23,30 @@ class WatchedValue(Generic[T]):
     def __get__(self, instance, owner=None):
         if instance is None:
             return self
-
-        val = self._value(instance)
-        if self._checkpoint_value(instance) is WatchedValue._NO_CHECKPOINT_VALUE:
-            self._set_checkpoint_value(instance, val)
-
-        return val
+        return self._value(instance)
 
     def __set__(self, instance: object, value):
         self._set_value(instance, value)
 
     def _value(self, instance: object) -> T | None:
-        val = instance.__dict__.get(self._name)
-        if val is None:
+        if self._name not in instance.__dict__:
             new_val = deepcopy(self._default)
             instance.__dict__[self._name] = new_val
             return new_val
         else:
-            return val
+            return instance.__dict__[self._name]
 
     def _set_value(self, instance: object, value: T) -> None:
         instance.__dict__[self._name] = deepcopy(value)
 
-    def _checkpoint_value(self, instance: object) -> T | WatchedValue._NO_CHECKPOINT_VALUE:
-        return instance.__dict__.get(self._checkpoint_value_name, WatchedValue._NO_CHECKPOINT_VALUE)
+    def _checkpoint_value(self, instance: object) -> T:
+        return instance.__dict__.get(self._checkpoint_value_name, CheckpointValue._NO_CHECKPOINT_VALUE)
 
     def _set_checkpoint_value(self, instance: object, value: T) -> None:
         instance.__dict__[self._checkpoint_value_name] = deepcopy(value)
 
-    def check_dirty(self, instance: object) -> bool:
-        if self._checkpoint_value(instance) is WatchedValue._NO_CHECKPOINT_VALUE:
-            return False
+    def check_value_changed(self, instance: object) -> bool:
         return self._checkpoint_value(instance) != self._value(instance)
 
-    def clear_dirty(self, instance: object) -> None:
-        self._set_checkpoint_value(instance, WatchedValue._NO_CHECKPOINT_VALUE)
+    def set_checkpoint(self, instance: object) -> None:
+        self._set_checkpoint_value(instance, self._value(instance))

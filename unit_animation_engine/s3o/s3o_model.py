@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import struct
-from copy import copy
+from collections.abc import Callable, Generator
 from enum import Enum
 from typing import NamedTuple, Self
 
@@ -93,8 +93,6 @@ class S3OPiece:
     indices: list[int]
     primitive_type: PrimitiveType
 
-    index: int
-
     def __init__(self):
         self.name = 'unnamed'
 
@@ -106,8 +104,6 @@ class S3OPiece:
         self.vertices = list()
         self.indices = list()
         self.primitive_type = S3OPiece.PrimitiveType.Triangles
-
-        self.index = 0
 
     @classmethod
     def from_bytes(cls, data: bytes, offset: int, parent: 'S3OPiece | None' = None) -> Self:
@@ -156,7 +152,6 @@ class S3OPiece:
         return piece
 
     def triangulate_faces(self):
-
         match self.primitive_type:
             case S3OPiece.PrimitiveType.Triangles:
                 pass
@@ -178,7 +173,7 @@ class S3OPiece:
             case S3OPiece.PrimitiveType.Quads:
                 idx_len = len(self.indices)
                 if idx_len % 4 != 0:
-                    raise ValueError("Invalid number of indices for quads when")
+                    raise ValueError("Invalid number of indices for quads")
 
                 new_idx: list[int] = []
                 for i in range(0, idx_len, 4):
@@ -188,6 +183,8 @@ class S3OPiece:
                 self.primitive_type = S3OPiece.PrimitiveType.Triangles
                 self.indices = new_idx
 
+    def vertex_pos(self, index: int) -> float3:
+        return self.vertices[index].position if len(self.vertices) > index else float3(0)
 
 class S3OModel:
     collision_radius: float
@@ -196,16 +193,6 @@ class S3OModel:
     texture_path_1: str
     texture_path_2: str
     root_piece: S3OPiece
-
-    _index_lookup: list[S3OPiece]
-    _name_lookup: dict[str, S3OPiece]
-
-    @property
-    def pieces(self) -> list[S3OPiece]:
-        return copy(self._index_lookup)
-
-    def find_piece(self, name: str) -> S3OPiece | None:
-        return self._name_lookup.get(name)
 
     @classmethod
     def from_bytes(cls, data: bytes) -> Self:
@@ -230,16 +217,18 @@ class S3OModel:
 
         s3o.root_piece = S3OPiece.from_bytes(data, root_piece_offset)
 
-        s3o._index_lookup = []
-        s3o._name_lookup = {}
-
-        def traverse(piece: S3OPiece):
-            piece.index = len(s3o._index_lookup)
-            s3o._index_lookup.append(piece)
-            s3o._name_lookup[piece.name] = piece
-            for c in piece.children:
-                traverse(c)
-
-        traverse(s3o.root_piece)
-
         return s3o
+
+    def pieces(self) -> list[S3OPiece]:
+        result = []
+
+        def visit(piece: S3OPiece):
+            result.append(piece)
+            for child in piece.children:
+                visit(child)
+
+        visit(self.root_piece)
+        return result
+
+    def __iter__(self) -> Generator[S3OPiece]:
+        yield from self.pieces()
