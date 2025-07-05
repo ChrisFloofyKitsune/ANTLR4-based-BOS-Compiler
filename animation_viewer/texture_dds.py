@@ -6,6 +6,7 @@ import struct
 import typing
 import warnings
 
+import moderngl
 import typing_extensions
 from dataclasses import dataclass
 import numpy as np
@@ -234,6 +235,18 @@ class TextureDDS:
             offset += size
             width = max(1, width // 2)
             height = max(1, height // 2)
+
+    def load_mgl(self):
+        self.load_into_opengl()
+        mgl_tex = moderngl.get_context().external_texture(
+            self.gl_texture_id,
+            (self.header.width, self.header.height),
+            4,
+            0,
+            'f1'
+        )
+        setattr(mgl_tex, '_base_dds_texture_obj', self)
+        return mgl_tex
 
     def use(self):
         if self.gl_texture_id is None:

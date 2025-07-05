@@ -8,7 +8,7 @@ from pyglm import glm
 
 from animation_viewer.camera_window import CameraWindow
 from animation_viewer.texture_dds import TextureDDS
-from unit_animation_engine.fixed_tick_runner import FixedTickRunner
+from unit_animation_engine.fixed_tick_runner import FixedUpdateTicker
 from unit_animation_engine.local_model import LocalModel
 from unit_animation_engine.s3o import S3OModel
 
@@ -35,8 +35,8 @@ class MGLWindow(CameraWindow):
             self.s3o_legcom = S3OModel.from_bytes(f.read())
 
         with open("E:/bar_dev/Beyond-All-Reason/unittextures/leg_color.dds", 'rb') as f:
-            self.leg_color_texture = TextureDDS.from_bytes(f.read())
-        self.leg_color_texture.load_into_opengl()
+            self.leg_color_texture = TextureDDS.from_bytes(f.read()).load_mgl()
+        # self.leg_color_texture.load_into_opengl()
 
         self.legcom_model = LocalModel.from_s3o_model(self.s3o_legcom, "legcom")
         self.legcom_vao = self.legcom_model.build_vao()
@@ -67,7 +67,7 @@ class MGLWindow(CameraWindow):
             width=10000
         )
 
-        self.fixed_tick_runner = FixedTickRunner(self.fixed_update)
+        self.fixed_update_ticker = FixedUpdateTicker(self.fixed_update)
 
     def on_key_event(self, key, action, modifiers):
         super().on_key_event(key, action, modifiers)
@@ -78,7 +78,7 @@ class MGLWindow(CameraWindow):
                 case self.wnd.keys.RIGHT:
                     self.piece_select = min(len(self.legcom_model.piece_list) - 1, self.piece_select + 1)
 
-    def fixed_update(self, tick_info: FixedTickRunner.TickInfo):
+    def fixed_update(self, tick_info: FixedUpdateTicker.TickInfo):
         self.tick_info_label.text = textwrap.dedent(
             f"""
             ticks: {tick_info.fixed_tick_count}
@@ -88,7 +88,7 @@ class MGLWindow(CameraWindow):
         ).strip()
 
     def on_render(self, time: float, frametime: float):
-        self.fixed_tick_runner.update(frametime)
+        self.fixed_update_ticker.update(frametime)
 
         self.ctx.enable_only(moderngl.CULL_FACE | moderngl.DEPTH_TEST)
 
