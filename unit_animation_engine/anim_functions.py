@@ -1,3 +1,5 @@
+from typing import NamedTuple, Protocol
+
 from unit_animation_engine import math
 from unit_animation_engine.math import (
     float_velocity,
@@ -7,19 +9,40 @@ from unit_animation_engine.math import (
 )
 
 
+class AnimResult(Protocol):
+    """Protocol for animation results.
+
+    Attributes:
+        done (bool): True if the animation is complete, False if the animation needs to continue being updated.
+    """
+    done: bool
+
+
+class MoveTowardResult(NamedTuple):
+    """
+    Result of moving toward a target position.
+
+    Attributes:
+        done (bool): True if the target position was reached.
+        new_position (float): The updated position after the move.
+    """
+    done: bool
+    new_position: float
+
+
 def move_toward_target_position(
     current_position: float,
     target_position: float,
     speed: float_velocity,
     tick_rate: ticks_per_second
-) -> tuple[float, bool]:
+) -> MoveTowardResult:
     """
     Updates move animations
     :param current_position: position to update
     :param target_position: target position
     :param speed: change in position per second
     :param tick_rate: number of ticks per second
-    :return: new position, True if destination was reached
+    :return MoveTowardResult: new position and whether the target was reached
     """
     speed = math.abs(speed)
 
@@ -30,25 +53,36 @@ def move_toward_target_position(
 
     # If target would be overshot, snap to target
     if math.abs(delta_position) < speed_per_tick:
-        return target_position, True
+        return MoveTowardResult(True, target_position)
 
     # Return updated position
-    return current_position + (speed_per_tick * math.sign(delta_position)), False
+    return MoveTowardResult(False, current_position + (speed_per_tick * math.sign(delta_position)))
 
 
-def turn_toward_target_position(
+class TurnTowardResult(NamedTuple):
+    """Result of turning toward a target angle.
+
+    Attributes:
+        done (bool): True if the target angle was reached.
+        new_angle (radians): The updated angle after the turn.
+    """
+    done: bool
+    new_angle: radians
+
+
+def turn_toward_target_rotation(
     current_angle: radians,
     target_angle: radians,
     speed: radians_velocity,
     tick_rate: ticks_per_second
-) -> tuple[radians, bool]:
+) -> TurnTowardResult:
     """
     Updates turn animations
     :param current_angle: current angle
     :param target_angle: target angle
     :param speed: change in value per second
     :param tick_rate: number of ticks per second
-    :return new rotation, True if destination was reached
+    :return TurnTowardResult: True if the animation is finished, new angle
     """
     current_angle = math.clamp_rad(current_angle)
     target_angle = math.clamp_rad(target_angle)
@@ -64,27 +98,40 @@ def turn_toward_target_position(
 
     # If target would be overshot, snap to target
     if math.abs(delta) < speed_per_tick:
-        return target_angle, True
+        return TurnTowardResult(True, target_angle)
 
     # Return updated angle
-    return math.clamp_rad(current_angle + (speed_per_tick * math.sign(delta))), False
+    return TurnTowardResult(False, math.clamp_rad(current_angle + (speed_per_tick * math.sign(delta))))
 
 
-def spin_towards_target_speed(
+class SpinTowardResult(NamedTuple):
+    """Result of spinning toward a target speed.
+
+    Attributes:
+        done (bool): True if the animation is finished (target speed 0, and it was reached).
+        new_angle (radians): The updated angle after the spin.
+        new_speed (radians_velocity): The updated speed after the spin.
+    """
+    done: bool
+    new_angle: radians
+    new_speed: radians_velocity
+
+
+def spin_toward_target_velocity(
     current_angle: radians,
-    target_speed: radians_velocity,
     current_speed: radians_velocity,
+    target_speed: radians_velocity,
     accel: radians_accel,
     tick_rate: ticks_per_second
-) -> tuple[radians, radians_velocity, bool]:
+) -> SpinTowardResult:
     """
     Updates spin animations
     :param current_angle: current angle
-    :param target_speed: the final desired speed (NOT the final angle!)
     :param current_speed: value change per second
+    :param target_speed: the final desired speed (NOT the final angle!)
     :param accel: change in speed per second
     :param tick_rate: number of ticks per second
-    :return: new rotation angle, new speed, True if target speed was reached AND it was zero (animation finished)
+    :return SpinTowardResult: True if the animation is finished, new angle, new speed
     """
     current_angle = math.clamp_rad(current_angle)
     accel = math.abs(accel)
@@ -110,4 +157,4 @@ def spin_towards_target_speed(
     # Check if the target speed is reached and is zero
     # (the animation is finished ONLY if the spinning has completely stopped)
     animation_finished = (new_speed == 0 and target_speed == 0)
-    return new_angle, new_speed, animation_finished
+    return SpinTowardResult(animation_finished, new_angle, new_speed)

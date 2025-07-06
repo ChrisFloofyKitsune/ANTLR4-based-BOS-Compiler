@@ -6,8 +6,8 @@ from typing import Final, overload, TypeAlias, Callable
 from unit_animation_engine import math
 from unit_animation_engine.anim_functions import (
     move_toward_target_position,
-    turn_toward_target_position,
-    spin_towards_target_speed,
+    turn_toward_target_rotation,
+    spin_toward_target_velocity,
 )
 from unit_animation_engine.exceptions import UnitEngineError
 from unit_animation_engine.local_model import LocalModelPiece
@@ -203,7 +203,7 @@ class Animator:
     @staticmethod
     def tick_move_anim(tick_rate: ticks_per_second, lmp: LocalModelPiece, ai: AnimInfo) -> bool:
         pos: math.float3 = lmp.position
-        pos[ai.key.axis], done = move_toward_target_position(
+        done, pos[ai.key.axis] = move_toward_target_position(
             pos[ai.key.axis], ai.target, ai.velocity,
             tick_rate
         )
@@ -213,7 +213,7 @@ class Animator:
     def tick_turn_anim(tick_rate: ticks_per_second, lmp: LocalModelPiece, ai: AnimInfo) -> bool:
         rot: math.radians3 = lmp.rotation
         rot[ai.key.axis] = math.clamp_rad(rot[ai.key.axis])
-        rot[ai.key.axis], done = turn_toward_target_position(
+        done, rot[ai.key.axis] = turn_toward_target_rotation(
             rot[ai.key.axis], ai.target, ai.velocity,
             tick_rate
         )
@@ -222,8 +222,8 @@ class Animator:
     @staticmethod
     def tick_spin_anim(tick_rate: ticks_per_second, lmp: LocalModelPiece, ai: AnimInfo) -> bool:
         rot: math.radians3 = lmp.rotation
-        rot[ai.key.axis], ai.velocity, done = spin_towards_target_speed(
-            rot[ai.key.axis], ai.target, ai.velocity, ai.accel,
+        done, rot[ai.key.axis], ai.velocity = spin_toward_target_velocity(
+            rot[ai.key.axis], ai.velocity, ai.target, ai.accel,
             tick_rate
         )
         return done
