@@ -1,2 +1,0 @@
-class UnitEngineError(Exception):
-    pass

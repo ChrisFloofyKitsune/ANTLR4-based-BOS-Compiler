@@ -4,12 +4,12 @@ from cob.cob_file import CobFile
 from cob.interpreter.thread import CobThread
 from cob.interpreter.types_ import ThreadCallbackType
 from script_hook_function import ScriptHookFunction
-from unit_animation_engine.math import uint32, MAX_COB_ARGS, float3
-from unit_animation_engine.types_ import (
+from animation_engine.math import uint32, MAX_COB_ARGS, float3
+from animation_engine.types_ import (
     WeaponIndex, FunctionIndex, WeaponDefId, ScriptPieceIndex, UnitId, ValueIndex,
     AnimType, Axis,
 )
-from unit_animation_engine.unit import Unit
+from animation_engine.unit import Unit
 
 
 class CobInstance(UnitScript):

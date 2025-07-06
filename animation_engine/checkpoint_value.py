@@ -7,7 +7,7 @@ T = TypeVar("T")
 
 
 class CheckpointValue(Generic[T]):
-    _NO_CHECKPOINT_VALUE: Final = object()
+    _NO_CHECKPOINT_VALUE: Final[object] = object()
 
     _name: str
     _checkpoint_value_name: str

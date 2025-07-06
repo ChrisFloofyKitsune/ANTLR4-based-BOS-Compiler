@@ -3,16 +3,16 @@ import logging
 from copy import deepcopy
 from typing import Final, overload, TypeAlias, Callable
 
-from unit_animation_engine import math
-from unit_animation_engine.anim_functions import (
+from animation_engine import math
+from animation_engine.anim_functions import (
     move_toward_target_position,
     turn_toward_target_rotation,
     spin_toward_target_velocity,
 )
-from unit_animation_engine.exceptions import UnitEngineError
-from unit_animation_engine.local_model import LocalModelPiece
-from unit_animation_engine.math import radians, radians_accel, ticks_per_second
-from unit_animation_engine.types_ import (
+from animation_engine.exceptions import AnimationEngineError
+from animation_engine.local_model import LocalModelPiece
+from animation_engine.math import radians, ticks_per_second
+from animation_engine.types_ import (
     Axis,
     AnimType,
     AnimInfo,
@@ -20,7 +20,7 @@ from unit_animation_engine.types_ import (
     ModelPieceIndex,
     AnimKey,
 )
-from unit_animation_engine.unit import Unit
+from animation_engine.unit import Unit
 
 _logger = logging.getLogger(__name__)
 
@@ -48,8 +48,8 @@ class Animator:
     _anims: dict[AnimKey, AnimInfo] = {}
     _done_anims: dict[AnimKey, AnimInfo] = {}
 
-    from unit_animation_engine.main_engine import MainAnimationEngine
-    main_engine: MainAnimationEngine
+    from animation_engine.animation_engine import AnimationEngine
+    main_engine: AnimationEngine
 
     def __init__(self, unit: Unit):
         self._unit = unit
@@ -196,7 +196,7 @@ class Animator:
 
     @staticmethod
     def tick_invalid_anim(tick_rate: ticks_per_second, lmp: LocalModelPiece, ai: AnimInfo) -> bool:
-        raise UnitEngineError(
+        raise AnimationEngineError(
             f"Invalid animation type {ai.key.anim_type} for piece {ai.key.piece} on axis {ai.key.axis} was attempted to be ticked"
         )
 
@@ -327,7 +327,7 @@ class Animator:
         :param anim_key: The key of the animation to check for.
         :return: True if the animation is in progress and waiting was set, False otherwise.
         """
-        anim_info = self.find_anim(*anim_key)
+        anim_info = self.find_anim(anim_key)
         if anim_info is None:
             return False
 

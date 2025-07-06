@@ -2,11 +2,11 @@ from __future__ import annotations
 
 from copy import deepcopy
 
-from pyglm import glm
+import pyglm as glm
 
-from unit_animation_engine.checkpoint_value import CheckpointValue
-from unit_animation_engine import math
-from unit_animation_engine.math import float3, radians3, matrix44
+from animation_engine.checkpoint_value import CheckpointValue
+from animation_engine import math
+from animation_engine.math import float3, radians3, matrix44
 
 class Transform:
     """
@@ -23,7 +23,7 @@ class Transform:
 
     position = CheckpointValue[float3]()
     """ The position of the transform in local space. """
-    rotation = CheckpointValue[float3]()
+    rotation = CheckpointValue[radians3]()
     """ The rotation of the transform in local space (in radians). """
     scale = CheckpointValue[float3]()
     """ The scale of the transform in local space. """

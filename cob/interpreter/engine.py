@@ -9,12 +9,12 @@ from typing import NamedTuple, cast
 from cob.interpreter.instance import CobInstance
 from cob.interpreter.thread import CobThread
 from cob.interpreter.types_ import ThreadId
-from unit_animation_engine.exceptions import UnitEngineError
+from animation_engine.exceptions import AnimationEngineError
 
 LOG = logging.getLogger(__name__)
 
 
-class InvalidCobThreadStateError(UnitEngineError):
+class InvalidCobThreadStateError(AnimationEngineError):
     """Raised when a thread is in an invalid state for the current operation."""
 
     def __init__(self, thread: CobThread):
@@ -73,7 +73,7 @@ class CobEngine:
                 keep_alive = thread.tick()
                 if not keep_alive:
                     self.remove_thread(thread.get_id())
-        except UnitEngineError as err:
+        except AnimationEngineError as err:
             LOG.error("Error in thread #%s for instance %s", thread.get_id(), repr(thread.cob_instance), exc_info=err)
             thread.stop()
 
@@ -168,7 +168,7 @@ class CobEngine:
             thread.set_id(t_id)
 
         if t_id in self.__thread_instances:
-            raise UnitEngineError(f"Thread #{t_id} has already been added!")
+            raise AnimationEngineError(f"Thread #{t_id} has already been added!")
 
         self.__thread_instances[t_id] = thread
 
@@ -217,14 +217,14 @@ class CobEngine:
 
         for thread in self.__thread_instances.values():
             if thread.cob_instance == instance:
-                raise UnitEngineError(
+                raise AnimationEngineError(
                     f"Thread #{thread.get_id()} for instance {repr(instance)}"
                     f" should have been destroyed, but is still running!"
                 )
 
         for thread in self.__tick_added_threads:
             if thread.cob_instance == instance:
-                raise UnitEngineError(
+                raise AnimationEngineError(
                     f"Thread #{thread.get_id()} for instance {repr(instance)}"
                     f" should have been destroyed, but is still queued to be added!"
                 )

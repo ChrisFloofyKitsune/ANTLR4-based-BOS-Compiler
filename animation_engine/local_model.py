@@ -4,10 +4,10 @@ import struct
 
 from moderngl_window.opengl.vao import VAO
 
-from unit_animation_engine.math import *
-from unit_animation_engine.s3o import S3OPiece, S3OModel
-from unit_animation_engine.transform import Transform
-from unit_animation_engine.types_ import ModelPieceIndex, ScriptPieceIndex
+from animation_engine.math import *
+from animation_engine.s3o import S3OPiece, S3OModel
+from animation_engine.transform import Transform
+from animation_engine.types_ import ModelPieceIndex, ScriptPieceIndex
 
 
 class LocalModel:

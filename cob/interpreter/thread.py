@@ -5,7 +5,7 @@ from typing import Self
 from cob.cob_file import CobFile
 from cob.interpreter.instance import CobInstance
 from cob.interpreter.types_ import ThreadId, ThreadCallbackType, CallInfo
-from unit_animation_engine.types_ import AnimType
+from animation_engine.types_ import AnimType
 
 
 class CobThread:

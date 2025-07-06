@@ -2,8 +2,8 @@ import unittest
 
 from pyglm import glm
 
-from unit_animation_engine.math import float3, radians3, matrix44
-from unit_animation_engine.transform import Transform
+from animation_engine.math import float3, radians3, matrix44
+from animation_engine.transform import Transform
 
 
 class TestTransform(unittest.TestCase):

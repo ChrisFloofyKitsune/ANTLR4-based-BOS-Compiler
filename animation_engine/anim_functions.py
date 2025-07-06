@@ -1,7 +1,7 @@
 from typing import NamedTuple, Protocol
 
-from unit_animation_engine import math
-from unit_animation_engine.math import (
+from animation_engine import math
+from animation_engine.math import (
     float_velocity,
     radians,
     radians_velocity,

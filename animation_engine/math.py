@@ -1,6 +1,6 @@
 from typing import Final, TypeAlias, NewType
 
-from pyglm import glm
+import pyglm as glm
 
 ticks_per_second: TypeAlias = int
 

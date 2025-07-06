@@ -2,14 +2,14 @@ import moderngl
 import moderngl_window as mgw
 import moderngl_window.geometry
 import moderngl_window.scene
-import pyglm.glm as glm
+import pyglm as glm
 from moderngl_window.geometry import AttributeNames
 from moderngl_window.scene import Node, Mesh, Material
 from pyglet.gl import GL_FLOAT
 
 from animation_viewer.fixed_update_window import FixedUpdateWindow
-from unit_animation_engine import anim_functions
-from unit_animation_engine.fixed_tick_runner import FixedUpdateTicker
+from animation_engine import anim_functions
+from animation_engine.fixed_tick_runner import FixedUpdateTicker
 
 
 class ColorMaterial(Material):
@@ -65,7 +65,6 @@ class BasicAnimationsWindow(FixedUpdateWindow):
 
         self.scene.prepare()
 
-        self.camera_enabled = False
         self.camera.position = glm.vec3(0, 0.5, 10)
 
         # -----------------#
@@ -110,7 +109,7 @@ class BasicAnimationsWindow(FixedUpdateWindow):
             self.camera.matrix
         )
 
-    def on_fixed_update(self, tick_info: FixedUpdateTicker.TickInfo):
+    def on_fixed_update(self, tick_info: FixedUpdateTicker.TickInfo) -> None:
         self.update_red_cube(tick_info)
         self.update_green_cube(tick_info)
         self.update_blue_cube(tick_info)

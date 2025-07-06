@@ -1,5 +1,5 @@
 from animation_viewer.camera_window import CameraWindow
-from unit_animation_engine.fixed_tick_runner import FixedUpdateTicker
+from animation_engine.fixed_tick_runner import FixedUpdateTicker
 
 
 class FixedUpdateWindow(CameraWindow):
@@ -13,6 +13,7 @@ class FixedUpdateWindow(CameraWindow):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.ticker = FixedUpdateTicker(self.on_fixed_update)
+        self.camera_enabled = False
 
         wnd = kwargs.get('wnd')
         if wnd:
@@ -27,6 +28,6 @@ class FixedUpdateWindow(CameraWindow):
 
         return wrapped_render
 
-    def on_fixed_update(self, tick_info: FixedUpdateTicker.TickInfo):
+    def on_fixed_update(self, tick_info: FixedUpdateTicker.TickInfo) -> None:
         """Override this method to implement fixed update logic."""
         pass

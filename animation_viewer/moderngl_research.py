@@ -8,9 +8,9 @@ from pyglm import glm
 
 from animation_viewer.camera_window import CameraWindow
 from animation_viewer.texture_dds import TextureDDS
-from unit_animation_engine.fixed_tick_runner import FixedUpdateTicker
-from unit_animation_engine.local_model import LocalModel
-from unit_animation_engine.s3o import S3OModel
+from animation_engine.fixed_tick_runner import FixedUpdateTicker
+from animation_engine.local_model import LocalModel
+from animation_engine.s3o import S3OModel
 
 
 class MGLWindow(CameraWindow):

@@ -5,8 +5,8 @@ from collections.abc import Callable, Generator
 from enum import Enum
 from typing import NamedTuple, Self
 
-from unit_animation_engine import math
-from unit_animation_engine.math import float3, float2
+from animation_engine import math
+from animation_engine.math import float3, float2
 
 _S3OHeader_struct = struct.Struct("< 12s i 5f 4i")
 """
