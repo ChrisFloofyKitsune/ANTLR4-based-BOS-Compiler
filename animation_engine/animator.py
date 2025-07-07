@@ -1,7 +1,6 @@
-import inspect
 import logging
-from copy import deepcopy
-from typing import Final, overload, TypeAlias, Callable
+from collections.abc import Callable
+from typing import Final, TYPE_CHECKING, Generic
 
 from animation_engine import math
 from animation_engine.anim_functions import (
@@ -9,105 +8,65 @@ from animation_engine.anim_functions import (
     turn_toward_target_rotation,
     spin_toward_target_velocity,
 )
-from animation_engine.exceptions import AnimationEngineError
-from animation_engine.local_model import LocalModelPiece
-from animation_engine.math import radians, ticks_per_second
-from animation_engine.types_ import (
+from animation_engine.data_types import (
     Axis,
     AnimType,
     AnimInfo,
-    ScriptPieceIndex,
-    ModelPieceIndex,
-    AnimKey,
+    AnimKey, TransformSubtype,
 )
-from animation_engine.unit import Unit
+from animation_engine.exceptions import AnimationEngineError
+from animation_engine.math import radians, ticks_per_second, radians3, float3
+
+if TYPE_CHECKING:
+    from animation_engine.animation_engine import AnimationEngine
 
 _logger = logging.getLogger(__name__)
 
-TickAnimFunc: TypeAlias = Callable[[int, LocalModelPiece, AnimInfo], bool]
-"""
-A function type for processing animations during a tick.
 
-Parameters:
-
-- tick_rate: int - The rate of ticks per second.
-- piece: LocalModelPiece - The model piece being animated.
-- anim: AnimInfo - The animation information.
-
-Returns:
-
-- bool: True if the animation is complete, False otherwise.
-"""
-
-
-class Animator:
-
-    _unit: Unit
-    _busy: bool
-
-    _anims: dict[AnimKey, AnimInfo] = {}
-    _done_anims: dict[AnimKey, AnimInfo] = {}
+class Animator(Generic[TransformSubtype]):
+    _anims: dict[AnimKey[TransformSubtype], AnimInfo] = {}
+    _done_anims: set[AnimKey[TransformSubtype]] = set()
 
     from animation_engine.animation_engine import AnimationEngine
-    main_engine: AnimationEngine
+    _animation_engine: AnimationEngine
 
-    def __init__(self, unit: Unit):
-        self._unit = unit
-        self.pieces = []
+    def __init__(self, animation_engine: AnimationEngine):
+        self._animation_engine = animation_engine
 
     def __del__(self):
         # remove all animations
         for anim_key in self._anims.keys():
-            self._remove_anim(self._anims[anim_key])
+            self._remove_anim(anim_key)
         self._anims.clear()
 
-    @overload
-    def find_anim(self, anim_key: AnimKey) -> AnimInfo | None:
-        pass
+    def find_anim(self, anim_key: AnimKey[TransformSubtype]) -> AnimInfo | None:
+        return self._anims.get(anim_key, None)
 
-    @overload
-    def find_anim(self, anim_type: AnimType, piece: ScriptPieceIndex, axis: Axis) -> AnimInfo | None:
-        pass
-
-    def find_anim(
-        self, anim_type_or_key: AnimKey | AnimType, piece: ScriptPieceIndex = None, axis: Axis = None
-    ) -> AnimInfo | None:
-        if isinstance(anim_type_or_key, AnimKey):
-            return self._anims.get(anim_type_or_key, None)
-        elif isinstance(anim_type_or_key, AnimType) and piece is not None and axis is not None:
-            return self._anims.get(AnimKey(anim_type_or_key, piece, axis), None)
-        return None
-
-    def _remove_anim(self, anim_info: AnimInfo | None) -> None:
+    def _remove_anim(self, anim_key: AnimKey) -> None:
+        anim_info = self.find_anim(anim_key)
         if anim_info is None:
             return
 
-        if self._anims.get(anim_info.key, None) != anim_info:
-            return
+        del self._anims[anim_key]
 
-        # We need to unblock threads waiting on this animation, otherwise they will be lost in the void
-        # NOTE: anim_finished might result in new anims being added
-        self.anim_finished(anim_info.key)
+        if anim_info.has_waiting:
+            self._animation_engine.notify_animation_finished(anim_key)
 
-        # no animations left? remove self from the list of active Animators
-        if not self.have_animations():
-            self.main_engine.remove_active_animator(self)
+        # remove self from active animators if this happened outside a tick update somehow
+        if not self._animation_engine.is_ticking() and not self.have_animations():
+            self._animation_engine.remove_active_animator(self)
 
     def _add_anim(
         self,
-        anim_type: AnimType,
-        piece: ScriptPieceIndex,
-        axis: Axis,
+        anim_key: AnimKey,
         target: float,
         velocity: float,
         accel: float = 0,
     ) -> None:
+        piece_index, anim_type, axis = anim_key
 
         velocity = math.abs(velocity)
         accel = math.abs(accel)
-
-        if not self._piece_exists_guard(piece):
-            return
 
         target_final = 0.0
         match anim_type:
@@ -117,21 +76,21 @@ class Animator:
                 target_final = math.clamp_rad(target)
 
                 # turn and spin animations are mutually exclusive
-                self._remove_anim(self.find_anim(AnimType.Spin, piece, axis))
+                self._remove_anim(AnimKey(piece_index, AnimType.Spin, axis))
             case AnimType.Spin:
                 target_final = math.clamp_rad(target)
 
                 # turn and spin animations are mutually exclusive
-                self._remove_anim(self.find_anim(AnimType.Turn, piece, axis))
+                self._remove_anim(AnimKey(piece_index, AnimType.Turn, axis))
 
-        anim_info = self.find_anim(anim_type, piece, axis)
+        anim_info = self.find_anim(anim_key)
 
         if anim_info is None:
             if not self.have_animations():
-                self.main_engine.add_active_animator(self)
+                self._animation_engine.add_active_animator(self)
 
             # create a new animation
-            anim_info = AnimInfo(AnimKey(anim_type, piece, axis))
+            anim_info = AnimInfo(anim_key)
             self._anims[anim_info.key] = anim_info
 
         # update new/existing animation
@@ -140,118 +99,63 @@ class Animator:
         anim_info.accel = accel
         anim_info.done = False
 
-    pieces: list[LocalModelPiece]
-
-    def piece_exists(self, script_piece_num: ScriptPieceIndex) -> bool:
-        return script_piece_num < len(self.pieces) and self.pieces[script_piece_num] is not None
-
-    def _piece_exists_guard(self, script_piece_num: ScriptPieceIndex) -> bool:
-        if not self.piece_exists(script_piece_num):
-            func_name = inspect.currentframe().f_back.f_code.co_qualname
-            _logger.error(
-                "[%s] attempted to use invalid script piece index. Valid range: 0-%d, requested: %d",
-                func_name, (len(self.pieces) - 1), script_piece_num,
-            )
-            return False
-        return True
-
-    def get_script_local_model_piece(self, script_piece_num: ScriptPieceIndex) -> LocalModelPiece:
-        assert self.piece_exists(script_piece_num)
-        return self.pieces[script_piece_num]
-
-    def script_to_model(self, script_piece_num: ScriptPieceIndex) -> ModelPieceIndex | None:
-        if not self._piece_exists_guard(script_piece_num):
-            return None
-
-        script_model_piece = self.get_script_local_model_piece(script_piece_num)
-        return script_model_piece.get_model_piece_index()
-
-    def model_to_script(self, local_model_piece_num: ModelPieceIndex) -> ScriptPieceIndex | None:
-        local_model = self._unit.local_model
-
-        if not local_model.has_piece(local_model_piece_num):
-            return None
-
-        return local_model.get_piece(local_model_piece_num).get_script_piece_index()
-
-    def get_piece_pos(self, piece: ScriptPieceIndex) -> math.float3:
-        if not self._piece_exists_guard(piece):
-            return math.float3()
-
-        lmp = self.get_script_local_model_piece(piece)
-        return lmp.get_offset() + lmp.position
-
-    def get_piece_matrix(self, piece: ScriptPieceIndex) -> math.matrix44:
-        if not self._piece_exists_guard(piece):
-            return math.matrix44()
-        return deepcopy(self.get_script_local_model_piece(piece).model_space_matrix)
-
-    def get_emit_dir_pos(self, piece: ScriptPieceIndex) -> tuple[math.float3, math.float3] | tuple[None, None]:
-        if not self._piece_exists_guard(piece):
-            return None, None
-        return self.get_script_local_model_piece(piece).get_emit_dir_pos()
-
-    def get_unit(self) -> Unit:
-        return self._unit
-
     @staticmethod
-    def tick_invalid_anim(tick_rate: ticks_per_second, lmp: LocalModelPiece, ai: AnimInfo) -> bool:
+    def tick_invalid_anim(tick_rate: ticks_per_second, ai: AnimInfo) -> bool:
         raise AnimationEngineError(
-            f"Invalid animation type {ai.key.anim_type} for piece {ai.key.piece} on axis {ai.key.axis} was attempted to be ticked"
+            f"Invalid animation type {ai.key.anim_type} for transform {ai.key.transform} on axis {ai.key.axis} was attempted to be ticked"
         )
 
     @staticmethod
-    def tick_move_anim(tick_rate: ticks_per_second, lmp: LocalModelPiece, ai: AnimInfo) -> bool:
-        pos: math.float3 = lmp.position
-        done, pos[ai.key.axis] = move_toward_target_position(
+    def tick_move_anim(tick_rate: ticks_per_second, ai: AnimInfo) -> None:
+        pos: math.float3 = ai.key.transform.position
+        ai.done, pos[ai.key.axis] = move_toward_target_position(
             pos[ai.key.axis], ai.target, ai.velocity,
             tick_rate
         )
-        return done
+        ai.key.transform.position = pos
 
     @staticmethod
-    def tick_turn_anim(tick_rate: ticks_per_second, lmp: LocalModelPiece, ai: AnimInfo) -> bool:
-        rot: math.radians3 = lmp.rotation
+    def tick_turn_anim(tick_rate: ticks_per_second, ai: AnimInfo) -> None:
+        rot: math.radians3 = ai.key.transform.rotation
         rot[ai.key.axis] = math.clamp_rad(rot[ai.key.axis])
-        done, rot[ai.key.axis] = turn_toward_target_rotation(
+        ai.done, rot[ai.key.axis] = turn_toward_target_rotation(
             rot[ai.key.axis], ai.target, ai.velocity,
             tick_rate
         )
-        return done
 
     @staticmethod
-    def tick_spin_anim(tick_rate: ticks_per_second, lmp: LocalModelPiece, ai: AnimInfo) -> bool:
-        rot: math.radians3 = lmp.rotation
-        done, rot[ai.key.axis], ai.velocity = spin_toward_target_velocity(
+    def tick_spin_anim(tick_rate: ticks_per_second, ai: AnimInfo) -> None:
+        rot: math.radians3 = ai.key.transform.rotation
+        ai.done, rot[ai.key.axis], ai.velocity = spin_toward_target_velocity(
             rot[ai.key.axis], ai.velocity, ai.target, ai.accel,
             tick_rate
         )
-        return done
+        ai.key.transform.rotation = rot
 
-    __TICK_ANIM_FUNCS: Final[dict[AnimType, TickAnimFunc]] = {
+    __TICK_ANIM_FUNCS: Final[dict[AnimType, Callable[[ticks_per_second, AnimInfo], None]]] = {
         AnimType.Turn: tick_turn_anim,
         AnimType.Spin: tick_spin_anim,
         AnimType.Move: tick_move_anim,
     }
 
-    def tick_all_anims(self, tick_rate: ticks_per_second) -> None:
-        """
-        The multithreaded first half of the UnitScript.Tick function first does the heavy lifting of calculating all
-        new piece positions according to the animations
+    def tick_progress_all_anims(self, tick_rate: ticks_per_second) -> None:
+        """Progress all currently active animations as part of a fixed-update loop
 
-        :param tick_rate: update rate
+        Parameters
+        ----------
+            tick_rate: ticks_per_second
+                The rate of ticks per second, used to calculate the progress of animations. Should always be the same value.
         """
 
         current_anim_items = list(self._anims.items())
 
         for anim_key, anim_info in current_anim_items:
-            lmp = self.pieces[anim_info.key.piece]
             anim_func = self.__TICK_ANIM_FUNCS.get(anim_info.key.anim_type, Animator.tick_invalid_anim)
-            anim_func(tick_rate, lmp, anim_info)
+            anim_func(tick_rate, anim_info)
             if anim_info.done:
-                self._done_anims[anim_key] = anim_info
+                self._done_anims.add(anim_key)
 
-    def tick_anim_finished(self) -> None:
+    def tick_handle_done_anims(self) -> None:
         """
         Iterate over and clean up finished animations.
 
@@ -261,13 +165,12 @@ class Animator:
         """
 
         for done_anim_key in self._done_anims:
-            self.anim_finished(done_anim_key)
+            self._remove_anim(done_anim_key)
         self._done_anims.clear()
 
-    def spin(self, piece: ScriptPieceIndex, axis: Axis, target_velocity: float, accel: float) -> None:
+    def spin(self, transform: TransformSubtype, axis: Axis, target_velocity: float, accel: float) -> None:
         accel = math.abs(accel)
-
-        anim_info = self.find_anim(AnimType.Spin, piece, axis)
+        anim_info = self.find_anim(AnimKey(transform, AnimType.Spin, axis))
 
         # alter existing animation
         if anim_info is not None:
@@ -283,15 +186,16 @@ class Animator:
         # create a new animation
         if accel > 0.0:
             # accelerate to target speed
-            self._add_anim(AnimType.Spin, piece, axis, target_velocity, 0.0, accel)
+            self._add_anim(AnimKey(transform, AnimType.Spin, axis), target_velocity, 0.0, accel)
         else:
             # snap to target_speed
-            self._add_anim(AnimType.Spin, piece, axis, target_velocity, target_velocity, 0.0)
+            self._add_anim(AnimKey(transform, AnimType.Spin, axis), target_velocity, target_velocity, 0.0)
 
-    def stop_spin(self, piece: ScriptPieceIndex, axis: Axis, decel: float) -> None:
+    def stop_spin(self, transform: TransformSubtype, axis: Axis, decel: float) -> None:
         decel = math.abs(decel)
+        anim_key = AnimKey(transform, AnimType.Spin, axis)
 
-        anim_info = self.find_anim(AnimType.Spin, piece, axis)
+        anim_info = self.find_anim(anim_key)
         if anim_info is None:
             return
 
@@ -301,31 +205,67 @@ class Animator:
             anim_info.accel = decel
         else:
             # instant stop
-            self._remove_anim(anim_info)
+            self._remove_anim(anim_key)
 
-    def turn(self, piece: ScriptPieceIndex, axis: Axis, target: float, velocity: float) -> None:
-        self._add_anim(AnimType.Turn, piece, axis, math.clamp_rad(target), velocity)
+    def turn(self, transform: TransformSubtype, axis: Axis, target: radians, velocity: radians) -> None:
+        """Turn the transform to the target rotation with a specified velocity."""
+        self._add_anim(AnimKey(transform, AnimType.Turn, axis), math.clamp_rad(target), velocity)
 
-    def move(self, piece: ScriptPieceIndex, axis: Axis, target: float, velocity: float) -> None:
-        self._add_anim(AnimType.Move, piece, axis, target, velocity)
+    def turn_3d(self, transform: TransformSubtype, target: radians3, velocity: radians | radians3) -> None:
+        """Turn the transform to the target rotation with a specified velocity."""
+        if not isinstance(velocity, radians3):
+            velocity = radians3(velocity)
 
-    def move_now(self, piece: ScriptPieceIndex, axis: Axis, dest: float) -> None:
-        if not self._piece_exists_guard(piece):
-            return
-        self.pieces[piece].position[axis] = dest
+        for axis in Axis:
+            self.turn(transform, target[axis], velocity[axis])
 
-    def turn_now(self, piece: ScriptPieceIndex, axis: Axis, dest: radians) -> None:
-        if not self._piece_exists_guard(piece):
-            return
-        self.pieces[piece].rotation[axis] = math.clamp_rad(dest)
+    def turn_now(self, transform: TransformSubtype, axis: Axis, dest: radians) -> None:
+        """Turn the transform to the target rotation immediately, without animation."""
+        self._remove_anim(AnimKey(transform, AnimType.Turn, axis))
+        transform.rotation[axis] = math.clamp_rad(dest)
+
+    def turn_now_3d(self, transform: TransformSubtype, dest: radians3) -> None:
+        """Turn the transform to the target rotation immediately, without animation."""
+        for axis in Axis:
+            self.turn_now(transform, axis, dest[axis])
+
+    def move(self, transform: TransformSubtype, axis: Axis, target: float, velocity: float) -> None:
+        """Move the transform to the target position with a specified velocity."""
+        self._add_anim(AnimKey(transform, AnimType.Move, axis), target, velocity)
+
+    def move_3d(self, transform: TransformSubtype, target: float3, velocity: float | float3) -> None:
+        """Move the transform to the target position with a specified velocity."""
+        if not isinstance(velocity, float3):
+            velocity = float3(velocity)
+
+        for axis in Axis:
+            self.move(transform, axis, target[axis], velocity[axis])
+
+    def move_now(self, transform: TransformSubtype, axis: Axis, dest: float) -> None:
+        """Move the transform to the target position immediately, without animation."""
+        self._remove_anim(AnimKey(transform, AnimType.Move, axis))
+        transform.position[axis] = dest
+
+    def move_now_3d(self, transform: TransformSubtype, dest: float3) -> None:
+        """Move the transform to the target position immediately, without animation."""
+        for axis in Axis:
+            self.move_now(transform, axis, dest[axis])
 
     def wait_on_anim(self, anim_key: AnimKey) -> bool:
-        """
-        Check if an animation is in progress and if so, set the waiting flag and return True.
+        """Check if an animation is in progress and if so, set the waiting flag and return True.
 
-        This is used by unit scripts to block/wait until the animation is finished.
-        :param anim_key: The key of the animation to check for.
-        :return: True if the animation is in progress and waiting was set, False otherwise.
+        This is used by engine modules to block/wait until the animation is finished.
+        ``AnimationEngine.notify_animation_finished`` will now be called later.
+
+        Parameters
+        ----------
+        anim_key: AnimKey
+            The key of the animation to check for.
+
+        Returns
+        -------
+        bool
+            True if the animation is in progress and waiting was set, False otherwise.
         """
         anim_info = self.find_anim(anim_key)
         if anim_info is None:
@@ -337,41 +277,12 @@ class Animator:
         anim_info.has_waiting = True
         return True
 
-    def set_visibility(self, piece: ScriptPieceIndex, visible: bool) -> None:
-        if not self._piece_exists_guard(piece):
-            return
-        self.pieces[piece].set_script_visible(visible)
+    def is_transform_in_animation(self, transform: TransformSubtype) -> bool:
+        return len(self.get_transform_animations(transform)) > 0
 
-    #
-    # def emit_sfx(self, sfx_type: int, sfx_piece: ScriptPieceIndex) -> bool:
-    #     if not self.piece_exists_guard(sfx_piece):
-    #         return False
-    #
-    #     # guaranteed to NOT return (None, None) as the piece exists
-    #     rel_dir, rel_pos = cast(tuple[math.float3, math.float3], self.get_emit_dir_pos(sfx_piece))
-    #     return self.emit_rel_sfx(sfx_type, rel_pos, math.normalize(rel_dir))
-    #
-    # def emit_rel_sfx(self, sfx_type: int, rel_pos: math.float3, rel_dir: math.float3) -> bool:
-    #     obj_space_pos = self._unit.get_object_space_pos(rel_pos)
-    #     obj_space_dir = self._unit.get_object_space_vec(rel_dir)
-    #     return self.emit_abs_sfx(sfx_type, obj_space_pos, obj_space_dir, rel_dir)
-    #
-    # def emit_abs_sfx(
-    #     self, sfx_type: int, abs_pos: math.float3, abs_dir: math.float3, rel_dir: math.float3 = math.FORWARD_VECTOR
-    # ) -> bool:
-    #     # renderer specific, leave a hook for something else to take care of it
-    #     try:
-    #         self.emit_sfx_subject.on_next((sfx_type, abs_pos, abs_dir, rel_dir))
-    #     except Exception as ex:
-    #         self._show_unit_script_error(f"emit_sfx handler threw an exception: {str(ex)}")
-    #         return False
-    #     return True
-
-    def is_in_animation(self, anim_type: AnimType, piece: ScriptPieceIndex, axis: Axis) -> bool:
-        return self.find_anim(anim_type, piece, axis) is not None
+    def get_transform_animations(self, transform: TransformSubtype) -> list[AnimInfo[TransformSubtype]]:
+        return list(self._anims[anim_key] for anim_key in self._anims if anim_key.transform == transform)
 
     def have_animations(self) -> bool:
         return len(self._anims) > 0
 
-    def anim_finished(self, anim_key: AnimKey) -> None:
-        self.main_engine.notify_animation_finished(self._unit, anim_key)

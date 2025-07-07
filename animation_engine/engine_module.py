@@ -4,12 +4,11 @@ from typing import TYPE_CHECKING
 from abc import ABC, abstractmethod
 from typing import TypeVar
 
-from animation_engine.math import ticks_per_second
-
 if TYPE_CHECKING:
+    from animation_engine.math import ticks_per_second
+    from animation_engine.transform import Transform
     from animation_engine.animation_engine import AnimationEngine
-    from animation_engine.types_ import AnimKey
-    from animation_engine.unit import Unit
+    from animation_engine.data_types import AnimKey
 
 
 class EngineModule(ABC):
@@ -31,7 +30,7 @@ class EngineModule(ABC):
         pass
 
     @abstractmethod
-    def notify_animation_finished(self, unit: Unit, anim_info: AnimKey) -> None:
+    def notify_animation_finished(self, anim_key: AnimKey) -> None:
         pass
 
     @abstractmethod
@@ -39,4 +38,4 @@ class EngineModule(ABC):
         pass
 
 
-EngineModuleT = TypeVar("EngineModuleT", bound=EngineModule)
+EngineModuleSubtype = TypeVar("EngineModuleSubtype", bound=EngineModule)

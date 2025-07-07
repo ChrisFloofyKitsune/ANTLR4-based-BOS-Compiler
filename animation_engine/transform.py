@@ -2,11 +2,12 @@ from __future__ import annotations
 
 from copy import deepcopy
 
-import pyglm as glm
+from pyglm import glm
 
-from animation_engine.checkpoint_value import CheckpointValue
 from animation_engine import math
+from animation_engine.checkpoint_value import CheckpointValue
 from animation_engine.math import float3, radians3, matrix44
+
 
 class Transform:
     """
@@ -39,6 +40,51 @@ class Transform:
     """ The local space transformation matrix. """
     _model_space_matrix: matrix44
     """ The model space transformation matrix. """
+
+    _active: bool = True
+    """
+    Whether or not this Transform is active and if it's and it's children will receive matrix updates.
+    Things associated with inactive Transforms (models, physics, etc) should also not be rendered or updated.
+    """
+
+    def __init__(
+        self,
+        /,
+        position: float3 = float3(0),
+        rotation: radians3 = radians3(0),
+        scale: float3 = float3(1),
+        base_matrix: matrix44 = None,
+        parent: Transform | None = None,
+        children: list[Transform] = None,
+    ):
+        """
+        Initialize a new Transform instance. All params are keyword arguments.
+
+        :param position: The initial position as a `float3` vector. Defaults to (0, 0, 0).
+        :param rotation: The initial rotation as a `radians3` vector. Defaults to (0, 0, 0).
+        :param scale: The initial scale as a `float3` vector. Defaults to (1, 1, 1).
+        :param parent: The parent transform, or `None` if there is no parent. Defaults to `None`.
+        :param children: A list of child transforms, or `None` to start with no children. Defaults to `None`.
+        """
+        self._dirty = True
+
+        self.position = position
+        self.rotation = rotation
+        self.scale = scale
+
+        self.base_matrix = base_matrix or glm.identity(glm.mat4)
+
+        self._parent = parent
+        if self._parent:
+            self._parent.add_child(self)
+
+        self._children = [] if children is None else children
+        for child in self._children:
+            child.parent = self
+
+    # --------------------------------------#
+    # region: Dirty Checking/Clearing Logic #
+    # --------------------------------------#
 
     def _check_dirty(self):
         """
@@ -79,6 +125,14 @@ class Transform:
         self._dirty = True
         for child in self._children:
             child._set_dirty()
+
+    # -----------------------------------------#
+    # endregion: Dirty Checking/Clearing Logic #
+    # -----------------------------------------#
+
+    # ------------------------------------------#
+    # region: Parent/Child Hierarchy Management #
+    # ------------------------------------------#
 
     @property
     def parent(self) -> Transform | None:
@@ -189,6 +243,14 @@ class Transform:
             visited.add(current)
             current = current._parent
 
+    # ---------------------------------------------#
+    # endregion: Parent/Child Hierarchy Management #
+    # ---------------------------------------------#
+
+    # -----------------------------------#
+    # region: Matrix Properties/Updating #
+    # -----------------------------------#
+
     @property
     def local_space_matrix(self) -> matrix44:
         """
@@ -262,37 +324,6 @@ class Transform:
             print(f"Error calculating local space matrix: {e}")
             return glm.identity(glm.mat4)
 
-    def __init__(
-        self,
-        /,
-        position: float3 = float3(0),
-        rotation: radians3 = radians3(0),
-        scale: float3 = float3(1),
-        base_matrix: matrix44 = None,
-        parent: Transform | None = None,
-        children: list[Transform] = None,
-    ):
-        """
-        Initialize a new Transform instance. All params are keyword arguments.
-
-        :param position: The initial position as a `float3` vector. Defaults to (0, 0, 0).
-        :param rotation: The initial rotation as a `radians3` vector. Defaults to (0, 0, 0).
-        :param scale: The initial scale as a `float3` vector. Defaults to (1, 1, 1).
-        :param parent: The parent transform, or `None` if there is no parent. Defaults to `None`.
-        :param children: A list of child transforms, or `None` to start with no children. Defaults to `None`.
-        """
-        self._dirty = True
-
-        self.position = position
-        self.rotation = rotation
-        self.scale = scale
-
-        self.base_matrix = base_matrix or glm.identity(glm.mat4)
-
-        self._parent = parent
-        if self._parent:
-            self._parent.add_child(self)
-
-        self._children = [] if children is None else children
-        for child in self._children:
-            child.parent = self
+    # --------------------------------------#
+    # endregion: Matrix Properties/Updating #
+    # --------------------------------------#

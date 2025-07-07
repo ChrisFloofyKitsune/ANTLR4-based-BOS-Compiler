@@ -2,7 +2,7 @@ import moderngl
 import moderngl_window as mgw
 import moderngl_window.geometry
 import moderngl_window.scene
-import pyglm as glm
+from pyglm import glm
 from moderngl_window.geometry import AttributeNames
 from moderngl_window.scene import Node, Mesh, Material
 from pyglet.gl import GL_FLOAT

@@ -5,8 +5,8 @@ from cob.interpreter.thread import CobThread
 from cob.interpreter.types_ import ThreadCallbackType
 from script_hook_function import ScriptHookFunction
 from animation_engine.math import uint32, MAX_COB_ARGS, float3
-from animation_engine.types_ import (
-    WeaponIndex, FunctionIndex, WeaponDefId, ScriptPieceIndex, UnitId, ValueIndex,
+from animation_engine.data_types import (
+    WeaponIndex, FunctionIndex, WeaponDefId, AnimatorPieceIndex, UnitId, ValueIndex,
     AnimType, Axis,
 )
 from animation_engine.unit import Unit
@@ -154,7 +154,7 @@ class CobInstance(UnitScript):
         pass
 
     @override
-    def query_landing_pads(self) -> Sequence[ScriptPieceIndex]:
+    def query_landing_pads(self) -> Sequence[AnimatorPieceIndex]:
         pass
 
     @override
@@ -162,7 +162,7 @@ class CobInstance(UnitScript):
         pass
 
     @override
-    def _attach_unit_impl(self, piece: ScriptPieceIndex, unit: UnitId) -> None:
+    def _attach_unit_impl(self, piece: AnimatorPieceIndex, unit: UnitId) -> None:
         pass
 
     @override
@@ -170,15 +170,15 @@ class CobInstance(UnitScript):
         pass
 
     @override
-    def _explode_impl(self, piece: ScriptPieceIndex, flags: int) -> None:
+    def _explode_impl(self, piece: AnimatorPieceIndex, flags: int) -> None:
         pass
 
     @override
-    def _shatter_impl(self, piece: ScriptPieceIndex, pos: float3, speed: float3) -> None:
+    def _shatter_impl(self, piece: AnimatorPieceIndex, pos: float3, speed: float3) -> None:
         pass
 
     @override
-    def _show_flare_impl(self, piece: ScriptPieceIndex) -> None:
+    def _show_flare_impl(self, piece: AnimatorPieceIndex) -> None:
         pass
 
     @override
@@ -195,5 +195,5 @@ class CobInstance(UnitScript):
         raise NotImplementedError()
 
     @override
-    def anim_finished(self, anim_type: AnimType, piece: ScriptPieceIndex, axis: Axis) -> None:
+    def anim_finished(self, anim_type: AnimType, piece: AnimatorPieceIndex, axis: Axis) -> None:
         pass
