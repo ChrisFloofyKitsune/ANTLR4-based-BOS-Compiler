@@ -5,12 +5,12 @@ This module defines Pydantic models that map the glTF 2.0 JSON
 structure to Python classes for loading and validating.
 
 There are spec-enforcing validators (all end with `_gltf_spec`).
-    - GLTFSpecError is raised for MUST-level violations.
-    - GLTFSpecWarning is raised for SHOULD-level violations (using the built-in warnings module).
+    - GLTFSpecError(ValueError) is raised for MUST-level violations.
+    - GLTFSpecWarning(UserWarning) is raised for SHOULD-level violations (and when going against advisories in the glTF spec).
 
 Additional properties are allowed for all Pydantic models (per the spec).
 
-GLTFBase and GLTFNamed are base classes that are implied by the spec (and exist in their JSON Schema anyway).
+GLTFBase and GLTFNamed are base classes that are implied by the spec (and kinda exist in their JSON Schema anyway).
 
 (DDS textures have been added to the default supported image formats since projects I want to work on use it)
 
@@ -29,11 +29,11 @@ from pydantic.alias_generators import to_camel
 
 
 class GLTFSpecError(ValueError):
-    """Raised when a MUST-level glTF spec violation occurs during validation."""
+    """Raised when a MUST-level glTF spec is broken during validation."""
 
 
 class GLTFSpecWarning(UserWarning):
-    """Emitted for SHOULD-level or advisory glTF spec guidance."""
+    """Emitted when a SHOULD-level glTF spec (or advisory glTF spec guidance) is broken during validation."""
 
 
 Extension = dict[str, JsonValue]
