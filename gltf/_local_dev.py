@@ -1,7 +1,7 @@
 import argparse
 import pathlib
 
-from pydantic_models import *
+from gltf.pydantic_models.metadata import GLTFRoot
 from summary_tool import (
     summarize_gltf_counts,
     summarize_nodes,

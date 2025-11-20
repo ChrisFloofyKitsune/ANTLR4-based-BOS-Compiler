@@ -10,7 +10,7 @@ from pathlib import Path
 import argparse
 from typing import Optional
 
-from pydantic_models import GLTFRoot
+from pydantic_models.metadata import GLTFRoot
 
 # ---------- Pretty table helpers ----------
 
