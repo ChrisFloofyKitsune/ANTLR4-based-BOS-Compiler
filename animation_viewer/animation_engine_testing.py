@@ -1,14 +1,15 @@
 from pathlib import Path
 
 import moderngl
+import moderngl_window
 from pyglm import glm
 
 from animation_engine.animation_engine import AnimationEngine
 from animation_engine.animator import Animator
-from animation_engine.data_types import Axis
 from animation_engine.fixed_tick_runner import FixedUpdateTicker
 from animation_engine.transform import Transform
 from animation_viewer.fixed_update_window import FixedUpdateWindow
+from animation_viewer.gltf_anim_loader import GLTFAnimLoader
 
 
 class AnimationEngineTestingWindow(FixedUpdateWindow):
@@ -60,4 +61,7 @@ class AnimationEngineTestingWindow(FixedUpdateWindow):
 
 
 if __name__ == '__main__':
+    old_loader = next(l for l in moderngl_window.settings.SCENE_LOADERS if "gltf2" in l)
+    moderngl_window.settings.SCENE_LOADERS.remove(old_loader)
+    moderngl_window.settings.SCENE_LOADERS.insert(0, GLTFAnimLoader.__module__ + "." + GLTFAnimLoader.__qualname__)
     AnimationEngineTestingWindow.run()

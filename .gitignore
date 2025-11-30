@@ -1,7 +1,9 @@
 .venv
 .idea
-bos/example_files
 bos/preprocessed
-/cob/example_files/
-/cob/compiler/preprocessed/
+/cob_runtime/example_files/
+/cob_compiler/preprocessed/
 /bos_tree_sitter/compiled/
+
+/docs/_build/
+/docs/apidoc/

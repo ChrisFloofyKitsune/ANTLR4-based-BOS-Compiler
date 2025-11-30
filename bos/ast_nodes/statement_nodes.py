@@ -4,7 +4,7 @@ from typing import Generator, Any
 
 from bos.ast_nodes.enums import Keyword
 from bos.ast_nodes.expression_nodes import Expression, MacroCallExpression
-from bos.ast_nodes.base_nodes import UndefNode, BlockLevelNode, ValueNode
+from bos.ast_nodes.base_nodes import BlockLevelNode, ValueNode
 from bos.ast_nodes.name_nodes import VarName, NameNode
 from bos.ast_nodes.preproc_nodes import DefineName
 
@@ -14,7 +14,7 @@ class Statement(BlockLevelNode, ABC):
 
 
 class StatementBlock(Statement):
-    block_level_nodes: list[BlockLevelNode | UndefNode]
+    block_level_nodes: list[BlockLevelNode]
 
     def get_value(self):
         return self.block_level_nodes

@@ -1,11 +1,21 @@
+"""Pydantic models for glTF 2.0 animation structures.
+
+Defines the :py:class:`Animation` model and its nested models
+:class:`Animation.Channel`, :class:`Animation.Channel.Target`,
+and :class:`Animation.Sampler`.
+"""
+
+
 from __future__ import annotations
 
 from typing import Optional, Literal, Annotated
 
 from pydantic import Field
 
-from gltf.pydantic_models.annotation import IndexRef
+from util.index_ref import IndexRef
 from gltf.pydantic_models.base_definitions import GLTFNamed, GLTFBase
+from gltf.pydantic_models.data import Accessor
+from gltf.pydantic_models.scene import Node
 
 
 class Animation(GLTFNamed):
@@ -39,7 +49,7 @@ class Animation(GLTFNamed):
         Spec: https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#reference-animation-channel
         """
 
-        sampler: Annotated[int, Field(ge=0), IndexRef('Animation.Sampler')]
+        sampler: Annotated[int, Field(ge=0), IndexRef[Animation.Sampler]]
         """
         The index of a sampler in this animation used to compute the value
         for the target, e.g., a node’s translation, rotation, or scale (TRS).
@@ -55,7 +65,7 @@ class Animation(GLTFNamed):
             Spec: https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#reference-animation-channel-target
             """
 
-            node: Annotated[Optional[int], Field(default=None, ge=0), IndexRef('Node')]
+            node: Annotated[Optional[int], Field(default=None, ge=0), IndexRef[Node]]
             """
             The index of the node to animate.
             
@@ -89,7 +99,7 @@ class Animation(GLTFNamed):
         Spec: https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#reference-animation-sampler
         """
 
-        input: Annotated[int, Field(ge=0), IndexRef('Accessor')]
+        input: Annotated[int, Field(ge=0), IndexRef[Accessor]]
         """The index of an accessor containing keyframe timestamps."""
 
         interpolation: Literal['LINEAR', 'STEP', 'CUBICSPLINE'] = 'LINEAR'

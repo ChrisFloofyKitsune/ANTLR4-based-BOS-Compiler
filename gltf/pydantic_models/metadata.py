@@ -1,20 +1,23 @@
+"""Pydantic models for glTF 2.0 asset- and file-level metadata.
+
+Defines :class:`Asset` and :class:`GLTFRoot`, the top-level container
+for all other pydantic models in this package.
+"""
+
 from __future__ import annotations
 
 from typing import Optional
 
 from pydantic import Field, model_validator
 
+from gltf.pydantic_models.data import Buffer, BufferView, Accessor
+from gltf.pydantic_models import material
 from gltf.pydantic_models.animation import Animation
 from gltf.pydantic_models.base_definitions import GLTFBase
-from gltf.pydantic_models.data import Buffer, BufferView, Accessor
 from gltf.pydantic_models.validation_errors import GLTFSpecError
-from gltf.pydantic_models.node import Node, Scene
-from gltf.pydantic_models.image import Image
-from gltf.pydantic_models.material import Material
-from gltf.pydantic_models.mesh import Mesh
-from gltf.pydantic_models.skin import Skin
-from gltf.pydantic_models.texture import Sampler, Texture
-from gltf.pydantic_models.camera import Camera
+from gltf.pydantic_models.scene import Node, Scene, Camera
+from gltf.pydantic_models.material import Image, Texture, Material
+from gltf.pydantic_models.geometry import Mesh, Skin
 
 
 class Asset(GLTFBase):
@@ -45,11 +48,10 @@ class Asset(GLTFBase):
         # Ensure minVersion <= version when both defined
         if self.min_version is None:
             return self
-        try:
-            mv_major, mv_minor = (int(x) for x in self.min_version.split('.', 1))
-            v_major, v_minor = (int(x) for x in self.version.split('.', 1))
-        except Exception:
-            return self
+
+        mv_major, mv_minor = (int(x) for x in self.min_version.split('.', 1))
+        v_major, v_minor = (int(x) for x in self.version.split('.', 1))
+
         if (mv_major, mv_minor) > (v_major, v_minor):
             raise GLTFSpecError('GLTF Spec: asset.minVersion MUST NOT be greater than asset.version.')
         return self
@@ -60,10 +62,9 @@ class GLTFRoot(GLTFBase):
     Top-level glTF container listing all resources and the default scene.
 
     Cross-references in a glTF file are index-based. Most relationships are expressed as
-    0-based integer indices into arrays on this root object (or into arrays on
-    a containing object), rather than by IDs or pointers.
+    0-based integer indices into arrays on this root object (or into a property of some other object).
 
-    Common examples:
+    Non-exhaustive list of index based references:
         - ``scene`` is an index into ``scenes`` (the default scene)
         - ``Scene.nodes`` are indices into ``nodes`` (root nodes for the scene)
         - ``Node.children`` are indices into ``nodes`` (forming the node DAG)
@@ -116,8 +117,8 @@ class GLTFRoot(GLTFBase):
     nodes: Optional[list[Node]] = None
     """An array of nodes."""
 
-    samplers: Optional[list[Sampler]] = None
-    """An array of samplers. A sampler contains properties for texture filtering and wrapping modes."""
+    samplers: Optional[list[material.Sampler]] = None
+    """An array of samplers. A :class:`~gltf.pydantic_models.material.Sampler` contains properties for texture filtering and wrapping modes."""
 
     scene: Optional[int] = None
     """The index of the default scene. This property MUST NOT be defined, when scenes is undefined."""
@@ -132,21 +133,21 @@ class GLTFRoot(GLTFBase):
     """An array of skins. A skin is defined by joints and matrices."""
 
     @model_validator(mode='after')
-    def _validate_root_constraints_gltf_spec(self):
-        # scene index validity and presence rules
+    def _validate__root_constraints__scene_index_in_scenes__gltf_spec(self):
         if self.scene is not None:
             if self.scenes is None:
                 raise GLTFSpecError('GLTF Spec: scene MUST NOT be defined when scenes is undefined.')
             if not (0 <= self.scene < len(self.scenes)):
                 raise GLTFSpecError('GLTF Spec: scene index out of range for scenes array.')
-        # extensionsRequired subset of extensionsUsed
+        return self
+
+    @model_validator(mode='after')
+    def _validate__root_constraints__ext_req_subset_of_ext_used__gltf_spec(self):
         if self.extensions_required:
             used = set(self.extensions_used or [])
             missing = [ext for ext in self.extensions_required if ext not in used]
             if missing:
                 raise GLTFSpecError(
                     f'GLTF Spec: extensionsRequired MUST be a subset of extensionsUsed. Missing in used: {missing}'
-                    )
+                )
         return self
-
-

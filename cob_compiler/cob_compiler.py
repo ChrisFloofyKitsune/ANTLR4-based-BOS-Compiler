@@ -1,19 +1,16 @@
-import contextlib
-import itertools
-import warnings
 from itertools import chain, repeat
 import logging
 from array import array
 from copy import copy
 from functools import singledispatchmethod
 from itertools import islice
-from typing import cast
 
 from bos import ast_nodes as nodes
 from bos.ast_nodes import preproc_nodes
-from cob.cob_file import CobFile
-from cob.compiler.name_registry import NameRegistry, NameType
-from cob.opcodes import CobOpCode
+from bos.ast_nodes import Keyword
+from cob_compiler.cob_file import CobFile
+from cob_compiler.name_registry import NameRegistry, NameType
+from cob_compiler.opcodes import CobOpCode
 from code_error import CodeError
 from code_location import CodeLocation
 
@@ -22,22 +19,22 @@ log = logging.getLogger(__name__)
 
 class NodeNameRegistry(NameRegistry[nodes.NameNode]):
     def on_name_missing(self, name):
-        raise CodeError(f'name "{str(name)}" has not been defined', CodeLocation.from_parser_node(name.parser_node))
+        raise CodeError(f'name "{str(name)}" has not been defined', CodeLocation.from_node(name.parser_node))
 
     def on_name_collision(self, name: nodes.NameNode, name_type: NameType, existing_type: NameType):
-        if name_type == existing_type and name_type in (NameType.STATIC, NameType.PIECE):
+        if name_type == existing_type and name_type in (NameType.STATIC_VAR, NameType.PIECE):
             log.warning(
                 'Skipping duplicate declaration of global name %s "%s". Location: %s',
                 name_type.description,
                 str(name),
-                CodeLocation.from_parser_node(name.parser_node),
+                CodeLocation.from_node(name.parser_node),
             )
             return
 
         raise CodeError(
             f'invalid declaration of {name_type.description} "{str(name)}", '
             f"name is already being used by a {existing_type.description} declaration",
-            CodeLocation.from_parser_node(name.parser_node),
+            CodeLocation.from_node(name.parser_node),
         )
 
 
@@ -53,7 +50,7 @@ class CobCompiler:
         self.handle_node(file_node)
 
         return CobFile(
-            static_var_count=len(self.name_registry.get_name_strings(NameType.STATIC)),
+            static_var_count=len(self.name_registry.get_name_strings(NameType.STATIC_VAR)),
             code=copy(self.code),
             piece_names=self.name_registry.get_name_strings(NameType.PIECE),
             function_map={func_name.name: idx for func_name, idx in self.function_code_indices.items()},
@@ -69,7 +66,7 @@ class CobCompiler:
                     self.name_registry.register(piece_name, NameType.PIECE)
             elif isinstance(declaration, nodes.StaticVarDeclaration):
                 for var_name in declaration:
-                    self.name_registry.register(var_name, NameType.STATIC)
+                    self.name_registry.register(var_name, NameType.STATIC_VAR)
             elif isinstance(declaration, nodes.FuncDeclaration):
                 self.name_registry.register(declaration.name, NameType.FUNCTION)
             else:
@@ -120,13 +117,13 @@ class CobCompiler:
         self.function_code_indices[func_decl.name] = len(self.code)
 
         for arg in func_decl.args:
-            self.name_registry.register(arg, NameType.ARG)
+            self.name_registry.register(arg, NameType.ARGUMENT)
             self.code.append(CobOpCode.CREATE_LOCAL_VAR)
 
         self.handle_node(func_decl.block)
 
         # add return at end of it's missing
-        if len(func_decl.block) == 0 or not isinstance(func_decl.block[-1], nodes.ReturnStatement):
+        if not (func_decl.block and isinstance(func_decl.block[-1], nodes.ReturnStatement)):
             self.code.extend([CobOpCode.PUSH_CONSTANT, 0, CobOpCode.RETURN])
 
     @_handle_node.register
@@ -147,31 +144,31 @@ class CobCompiler:
     @_handle_node.register
     def _handle_node__keyword_statement(self, keyword_statement: nodes.KeywordStatement):
         keyword = keyword_statement.keyword
-        if keyword == nodes.Keyword.PLAY_SOUND:
+        if keyword == Keyword.PLAY_SOUND:
             raise NotImplementedError("PLAY_SOUND statement is not supported")
 
         # Get call done purely for side effects, remove the result from the stack
-        if keyword == nodes.Keyword.GET:
+        if keyword == Keyword.GET:
             self.handle_node(keyword_statement.args[0])
             self.code.append(CobOpCode.POP_STACK)
             return
 
         args = keyword_statement.args
         kw_op_code = CobOpCode.from_keyword(keyword_statement.keyword)
-        if keyword in (nodes.Keyword.MOVE, nodes.Keyword.TURN) and (
+        if keyword in (Keyword.MOVE, Keyword.TURN) and (
             args[-1] is None or len(args) == CobOpCode.MOVE_NOW.num_params
         ):
             match keyword:
-                case nodes.Keyword.MOVE:
+                case Keyword.MOVE:
                     kw_op_code = CobOpCode.MOVE_NOW
-                case nodes.Keyword.TURN:
+                case Keyword.TURN:
                     kw_op_code = CobOpCode.TURN_NOW
 
         # COB, why are you like this?
         # Need to swap the arg order for these keywords because
         # "The COB emulator in Recoil was created via reverse engineering/as a hacky modding tool or something"
         # reasons
-        if keyword in (nodes.Keyword.SET, nodes.Keyword.ATTACH_UNIT):
+        if keyword in (Keyword.SET, Keyword.ATTACH_UNIT):
             # yes, this will get reversed again in a moment
             args = args[::-1]
 
@@ -208,7 +205,7 @@ class CobCompiler:
     @_handle_node.register
     def _handle_node__var_statement(self, var_statement: nodes.VarStatement):
         for var in var_statement:
-            self.name_registry.register(var, NameType.LOCAL)
+            self.name_registry.register(var, NameType.LOCAL_VAR)
             self.code.append(CobOpCode.CREATE_LOCAL_VAR)
 
     @_handle_node.register(nodes.CallScriptStatement)
@@ -221,7 +218,7 @@ class CobCompiler:
         if not isinstance(func_name := statement.args[0], nodes.NameNode):
             raise CodeError(
                 f"Expected a function name, got {func_name.node_name}",
-                CodeLocation.from_parser_node(statement.parser_node),
+                CodeLocation.from_node(statement.parser_node),
             )
         self.code.append(self.name_registry.lookup(func_name)[0])
         self.code.append(len(statement.args) - 1)
@@ -274,14 +271,14 @@ class CobCompiler:
         idx, name_type = self.name_registry.lookup(assign_statement.variable)
 
         match name_type:
-            case NameType.STATIC:
+            case NameType.STATIC_VAR:
                 self.code.append(CobOpCode.POP_STATIC)
-            case NameType.LOCAL | NameType.ARG:
+            case NameType.LOCAL_VAR | NameType.ARGUMENT:
                 self.code.append(CobOpCode.POP_LOCAL_VAR)
             case _:
                 raise CodeError(
                     f'Illegal assignment to {name_type.description} "{assign_statement.variable.name}".',
-                    CodeLocation.from_parser_node(assign_statement.parser_node),
+                    CodeLocation.from_node(assign_statement.parser_node),
                 )
 
         self.code.append(idx)
@@ -349,9 +346,9 @@ class CobCompiler:
     def _handle_node__var_name_term(self, term: nodes.VarNameTerm):
         idx, var_type = self.name_registry.lookup(term.var_name)
         match var_type:
-            case NameType.STATIC:
+            case NameType.STATIC_VAR:
                 self.code.append(CobOpCode.PUSH_STATIC)
-            case NameType.LOCAL | NameType.ARG:
+            case NameType.LOCAL_VAR | NameType.ARGUMENT:
                 self.code.append(CobOpCode.PUSH_LOCAL_VAR)
             case NameType.PIECE | NameType.FUNCTION:
                 self.code.append(CobOpCode.PUSH_CONSTANT)  # the value to use is literally the index

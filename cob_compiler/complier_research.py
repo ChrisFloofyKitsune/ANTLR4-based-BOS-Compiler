@@ -3,7 +3,7 @@ from pathlib import Path
 
 import bos.ast_nodes as nodes
 from bos.bos_loader import BosLoader
-from cob.compiler.cob_compiler import CobCompiler
+from cob_compiler.cob_compiler import CobCompiler
 
 
 def __main(file_node: nodes.File):
@@ -14,7 +14,7 @@ def __main(file_node: nodes.File):
     with open('../example_files/Units/legcom.cob', 'rb') as file:
         byte_data = file.read()
 
-    with open('./legcom_recompiled.cob', 'wb') as file:
+    with open('legcom_recompiled.cob', 'wb') as file:
         file.write(serialized_data)
 
     if byte_data != serialized_data:
@@ -30,7 +30,7 @@ def __main(file_node: nodes.File):
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.DEBUG)
-    loader = BosLoader('../../bos/example_files/Units/legcom.bos', enable_constant_folding=True)
+    loader = BosLoader('../bos/example_files/Units/legcom.bos', enable_constant_folding=True)
     preproc_dir = Path('preprocessed')
     preproc_dir.mkdir(exist_ok=True)
     loader.dump_preprocessed_file(preproc_dir)

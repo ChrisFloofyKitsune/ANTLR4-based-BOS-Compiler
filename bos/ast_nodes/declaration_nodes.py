@@ -26,11 +26,6 @@ class File(ASTNode):
     def function_declarations(self):
         return [d for d in self.top_level_nodes if isinstance(d, FuncDeclaration)]
 
-    def get_value(self):
-        return SimpleNamespace(
-            top_level_nodes=self.top_level_nodes
-        )
-
     def __iter__(self) -> Generator[TopLevelNode, None, None]:
         yield from self.top_level_nodes
 
@@ -51,9 +46,6 @@ class PieceDeclaration(Declaration):
 
 class StaticVarDeclaration(Declaration):
     names: list[VarName]
-
-    def get_value(self):
-        return self.names
 
     def __iter__(self) -> Generator[VarName, None, None]:
         yield from self.names

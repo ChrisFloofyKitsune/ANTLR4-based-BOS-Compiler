@@ -1,13 +1,12 @@
 import logging
 import os.path
-import pdb
 
 import sys
 import time
 from pathlib import Path
 
 from bos.bos_loader import BosLoader
-from cob.compiler.cob_compiler import CobCompiler
+from cob_compiler.cob_compiler import CobCompiler
 
 
 # from bos.ast.ast_visitor import ASTVisitor
@@ -33,6 +32,9 @@ ______________________________________________
             if 'preprocessed' in bos_filepath:
                 continue
 
+            if 'armbats.bos' not in bos_filepath:
+                continue
+
             try:
                 filepath = root.joinpath(bos_filepath)
                 print(f'======== PARSING: {filepath} =============', flush=True)
@@ -54,18 +56,20 @@ ______________________________________________
                     print("*** COMPILING ***")
                     compiler = CobCompiler()
                     compiler.handle_node(file_ast)
-                except BaseException as err:
+                except Exception as err:
                     sys.stdout.flush()
                     print(f'Error compiling {bos_filepath}', file=sys.stderr, flush=True)
-                    print('[ERROR]', str(err), file=sys.stderr, flush=True)
-            except BaseException as err:
+                    logging.exception(err)
+                    sys.exit(-1)
+            except Exception as err:
                 sys.stdout.flush()
                 print(f'Error parsing {bos_filepath}', file=sys.stderr, flush=True)
                 print('[ERROR]', str(err), file=sys.stderr, flush=True)
+                sys.exit(-1)
 
 
 if __name__ == '__main__':
-    logging.basicConfig(format='%(levelname)s %(filename)s %(function)s %(lineno)s: %(message)s', level=logging.DEBUG)
+    logging.basicConfig(format='%(levelname)s %(filename)s:%(lineno)s %(funcName)s %(message)s', level=logging.INFO)
     start = time.perf_counter()
     main()
     end = time.perf_counter()

@@ -10,7 +10,7 @@ from antlr4.tree.Tree import TerminalNodeImpl
 
 from bos.gen.BosParser import BosParser
 from bos.gen.BosParserVisitor import BosParserVisitor
-from cob.compiler.name_registry import NameRegistry, NameType
+from cob_compiler import NameRegistry, NameType
 from code_location import CodeLocation
 from language_server_protocol.models import LspToken, TokenType, TokenModifier
 
@@ -35,7 +35,7 @@ class LspVisitor(BosParserVisitor):
         if isinstance(source_obj, ParserRuleContext):
             self.lsp_tokens.append(
                 LspToken(
-                    code_location=CodeLocation.from_parser_node(source_obj, self.filepath),
+                    code_location=CodeLocation.from_node(source_obj, self.filepath),
                     token_type=token_type,
                     token_modifier=token_mod
                 )
@@ -79,7 +79,7 @@ class LspVisitor(BosParserVisitor):
     def visitStaticVarDecl(self, ctx: BosParser.StaticVarDeclContext):
         for var_name_ctx in ctx.varName():
             self._add_token(var_name_ctx, TokenType.Variable, TokenModifier.Static, TokenModifier.Declaration)
-            self.name_registry.register(cast(BosParser.VarNameContext, var_name_ctx).getText(), NameType.STATIC)
+            self.name_registry.register(cast(BosParser.VarNameContext, var_name_ctx).getText(), NameType.STATIC_VAR)
 
     def visitKeywordStatement(self, ctx: BosParser.KeywordStatementContext):
         ctx: ParserRuleContext = ctx.getChild(0, ParserRuleContext)
@@ -91,7 +91,7 @@ class LspVisitor(BosParserVisitor):
 
         for arg_name_ctx in ctx.argName():
             self._add_token(arg_name_ctx, TokenType.Parameter, TokenModifier.Declaration)
-            self.name_registry.register(arg_name_ctx.getText(), NameType.ARG)
+            self.name_registry.register(arg_name_ctx.getText(), NameType.ARGUMENT)
         self.visit(ctx.statementBlock())
 
     def visitPieceName(self, ctx: BosParser.PieceNameContext):
@@ -107,13 +107,13 @@ class LspVisitor(BosParserVisitor):
     def visit_var_name_node(self, name_node: ParserRuleContext, /, extra_token_mod: TokenModifier = 0):
         _, name_type = self.name_registry.lookup(name_node.getText())
         match name_type:
-            case NameType.STATIC:
+            case NameType.STATIC_VAR:
                 self._add_token(name_node, TokenType.Variable, TokenModifier.Static | extra_token_mod)
             case NameType.PIECE:
                 self._add_token(name_node, TokenType.EnumMember, TokenModifier.Static, TokenModifier.ReadOnly | extra_token_mod)
-            case NameType.ARG:
+            case NameType.ARGUMENT:
                 self._add_token(name_node, TokenType.Parameter, extra_token_mod)
-            case NameType.LOCAL:
+            case NameType.LOCAL_VAR:
                 self._add_token(name_node, TokenType.Variable, extra_token_mod)
             case NameType.FUNCTION:
                 self._add_token(name_node, TokenType.Function, TokenModifier.Static | extra_token_mod)

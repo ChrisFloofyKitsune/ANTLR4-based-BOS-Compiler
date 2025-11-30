@@ -30,7 +30,7 @@ class BosPreprocessor(pcpp.Preprocessor):
         original_text: str
 
         @classmethod
-        def _from_pcpp_token(cls, token: 'BosPreprocessor._PcppToken'):
+        def from_pcpp_token(cls, token: 'BosPreprocessor._PcppToken'):
             return cls(
                 source=PurePosixPath(token.source.replace('\\', '/')),
                 expanded_from=token.expanded_from[-1] if getattr(token, 'expanded_from', None) else None,
@@ -92,7 +92,7 @@ class BosPreprocessor(pcpp.Preprocessor):
         file_text: str,
         file_path: str | PathLike[str],
         include_paths: list[str | PathLike[str]] = None
-    ):
+    ) -> tuple[str, str, list[Chunk]]:
         source_path = PurePosixPath(file_path)
 
         if include_paths:
@@ -111,7 +111,7 @@ class BosPreprocessor(pcpp.Preprocessor):
 
         for token in self.parser:
             prev_chunk = preproc_chunks[-1]
-            new_chunk = BosPreprocessor.Chunk._from_pcpp_token(token)
+            new_chunk = BosPreprocessor.Chunk.from_pcpp_token(token)
 
             if new_chunk.source != source_path:
                 if getattr(token, 'include_depth', 0) == 1:
@@ -133,12 +133,15 @@ class BosPreprocessor(pcpp.Preprocessor):
                 )
                 preproc_chunks.append(new_chunk)
             else:
+                # same source file as previous chunk
                 if new_chunk.source != source_path:
                     # always concatenate included files, we don't really care about their macro expansions
                     prev_chunk.text += new_chunk.text
                 else:
                     if prev_chunk.expanded_from == new_chunk.expanded_from:
                         prev_chunk.text += new_chunk.text
+
+                        # neither chunk is from a macro expansion, so we also want the original text
                         if new_chunk.expanded_from is None:
                             prev_chunk.original_text += new_chunk.original_text
                     else:

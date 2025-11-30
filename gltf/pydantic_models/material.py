@@ -1,12 +1,121 @@
+"""Pydantic models for glTF 2.0 materials, textures, samplers, and images.
+
+Defines :class:`Image`, :class:`Sampler`, :class:`Texture`, and
+:class:`Material` plus nested helper models used to express the core
+PBR metallic-roughness material model.
+"""
+
 from __future__ import annotations
 
 from typing import Optional, Literal, Annotated
 
-from pydantic import Field
+from pydantic import Field, model_validator
 
-from gltf.pydantic_models.animation import Animation
-from gltf.pydantic_models.annotation import IndexRef
+from util.index_ref import IndexRef
 from gltf.pydantic_models.base_definitions import GLTFNamed, GLTFBase
+from gltf.pydantic_models.data import BufferView
+from gltf.pydantic_models.gl_constant import GLConstant
+from gltf.pydantic_models.validation_errors import GLTFSpecError
+
+
+class Image(GLTFNamed):
+    """
+    Image data used to create a texture.
+
+    Image MAY be referenced by a URI (or IRI) or a buffer view index.
+
+    Spec: https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#reference-image
+    """
+
+    uri: Optional[str] = None
+    """
+    The URI (or IRI) of the image.
+
+    Relative paths are relative to the current glTF asset.
+
+    Instead of referencing an external file, this field MAY contain a data:-URI.
+
+    This field MUST NOT be defined when bufferView is defined.
+    """
+
+    mime_type: Optional[str] = None
+    """
+    The image’s media type.
+
+    This field MUST be defined when bufferView is defined.
+    """
+
+    buffer_view: Annotated[Optional[int], Field(default=None, ge=0), IndexRef[BufferView]]
+    """
+    The index of the bufferView that contains the image.
+
+    This field MUST NOT be defined when uri is defined.
+    """
+
+    @model_validator(mode='after')
+    def _validate_source_gltf_spec(self):
+        if self.buffer_view is not None:
+            if self.uri is not None:
+                raise GLTFSpecError('GLTF Spec: If bufferView is defined, uri MUST NOT be defined.')
+            if self.mime_type is None:
+                raise GLTFSpecError('GLTF Spec: If bufferView is defined, mimeType MUST be defined.')
+        return self
+
+
+class Sampler(GLTFNamed):
+    """
+    Texture sampling parameters.
+
+    Describes magnification/minification filters and wrap modes for the S/T axes.
+    Textures may reference a sampler to control how texels are sampled when rendered.
+
+    Spec: https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#reference-sampler
+    """
+
+    mag_filter: Optional[Literal[
+        GLConstant.NEAREST,
+        GLConstant.LINEAR
+    ]] = None
+    """Magnification filter."""
+
+    min_filter: Optional[Literal[
+        GLConstant.NEAREST,
+        GLConstant.LINEAR,
+        GLConstant.NEAREST_MIPMAP_NEAREST,
+        GLConstant.NEAREST_MIPMAP_LINEAR,
+        GLConstant.LINEAR_MIPMAP_NEAREST,
+        GLConstant.LINEAR_MIPMAP_LINEAR
+    ]] = None
+    """Minification filter."""
+
+    wrap_s: Literal[
+        GLConstant.CLAMP_TO_EDGE,
+        GLConstant.MIRRORED_REPEAT,
+        GLConstant.REPEAT
+    ] = GLConstant.REPEAT
+
+    wrap_t: Literal[
+        GLConstant.CLAMP_TO_EDGE,
+        GLConstant.MIRRORED_REPEAT,
+        GLConstant.REPEAT
+    ] = GLConstant.REPEAT
+
+
+class Texture(GLTFNamed):
+    """
+    A texture that references an image and an optional sampler.
+
+    Combines a source image with sampling parameters (via Sampler).
+
+    Spec: https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#reference-texture
+    """
+
+    sampler: Annotated[Optional[int], Field(default=None, ge=0), IndexRef[Sampler]]
+    """The index of the sampler used by this texture."""
+
+    source: Annotated[Optional[int], Field(default=None, ge=0), IndexRef[Image]]
+    """The index of the image used by this texture."""
+
 
 
 class Material(GLTFNamed):
@@ -128,7 +237,7 @@ class Material(GLTFNamed):
         Spec: https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#reference-textureinfo
         """
 
-        index: Annotated[int, Field(ge=0), IndexRef('Texture')]
+        index: Annotated[int, Field(ge=0), IndexRef[Texture]]
         """The index of the texture."""
 
         tex_coord: int = Field(default=0, ge=0)
@@ -238,6 +347,3 @@ class Material(GLTFNamed):
         
         When undefined, the texture MUST be sampled as having 1.0 in G and B components.
         """
-
-
-

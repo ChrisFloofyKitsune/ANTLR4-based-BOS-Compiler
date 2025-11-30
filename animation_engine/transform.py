@@ -95,7 +95,10 @@ class Transform:
         :return: True if the transform is dirty, False otherwise.
         """
 
-        if (
+        if self.parent:
+            self.parent._check_dirty()
+
+        if not self._dirty and (
             Transform.position.check_value_changed(self)
             or Transform.rotation.check_value_changed(self)
             or Transform.scale.check_value_changed(self)

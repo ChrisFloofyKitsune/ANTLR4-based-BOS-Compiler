@@ -1,17 +1,18 @@
 import base64
-import io
+import inspect
 import mimetypes
 import pathlib
 import typing
 import urllib.parse
-from collections.abc import Sequence
 
-from gltf.pydantic_models import GLTFRoot
+from gltf.pydantic_models.data import BufferView
+from gltf.pydantic_models.metadata import GLTFRoot
 from gltf.summary_tool import summarize_gltf_counts
 
-GLTF_MAGIC_BYTE_HEADER = 0x46546C67 # 'gltf'
-GLTF_CHUNK_TYPE_JSON = 0x4E4F534A # 'JSON'
-GLTF_CHUNK_TYPE_BINARY = 0x004E4942 # 'bin\0'
+GLTF_MAGIC_BYTE_HEADER = 0x46546C67  # 'gltf'
+GLTF_CHUNK_TYPE_JSON = 0x4E4F534A  # 'JSON'
+GLTF_CHUNK_TYPE_BINARY = 0x004E4942  # 'bin\0'
+
 
 class GLTFModel:
     """ High-level representation of a glTF model. """
@@ -56,9 +57,6 @@ class GLTFModel:
                 image_mem_view = memoryview()
                 image_mtype = image.mime_type
 
-
-
-
     def _handle_uri(self, uri: str, mime_type: str | None = None) -> tuple[bytes, str]:
         if uri.startswith('data:'):
             return self._handle_data_uri(uri)
@@ -93,12 +91,12 @@ class GLTFModel:
         return byte_data, mediatype
 
     def _handle_file_uri(self, path_str: str):
-        file_path = self.path.parent / path_str;
+        file_path = self.path.parent / path_str
         return file_path.resolve().read_bytes()
 
-    def get_buffer_view_data(self, buffer_view_index: int):
-        buffer_view = self.gltf_root.buffer_views[buffer_view_index]
-        buffer = self.gltf_root.buffers[buffer_view.buffer]
+    def get_buffer_view_data(self, buffer_view: BufferView) -> memoryview:
+        buffer_view = typing.get_type_hints(buffer_view, include_extras=True)
+        buffer = self.raw_buffer_data[buffer_view.buffer]
 
         start_idx = buffer_view.byte_offset
         end_idx = start_idx + buffer_view.byte_length
@@ -111,4 +109,3 @@ if __name__ == '__main__':
     print(summarize_gltf_counts(model.gltf_root))
     print([f'buffer of {len(d)} bytes' for d in model.raw_buffer_data])
     print([f'image of {len(d)} bytes and media type {t}' for d, t in model.raw_image_data])
-

@@ -2,9 +2,9 @@ from array import array
 from enum import Enum, auto
 from typing import Self
 
-from cob.cob_file import CobFile
-from cob.interpreter.instance import CobInstance
-from cob.interpreter.types_ import ThreadId, ThreadCallbackType, CallInfo
+from cob_compiler.cob_file import CobFile
+from cob_runtime.interpreter.instance import CobInstance
+from cob_runtime.interpreter.types_ import ThreadId, ThreadCallbackType, CallInfo
 from animation_engine.data_types import AnimType
 
 

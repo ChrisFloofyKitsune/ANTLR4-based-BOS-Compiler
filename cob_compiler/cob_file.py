@@ -2,7 +2,6 @@ import struct
 from array import array
 from collections import defaultdict
 from dataclasses import dataclass
-from functools import lru_cache, cached_property
 from typing import ClassVar
 
 from script_hook_function import ScriptHookFunction

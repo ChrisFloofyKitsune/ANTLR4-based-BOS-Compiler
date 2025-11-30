@@ -1,8 +1,8 @@
 from typing import override, Sequence
 
-from cob.cob_file import CobFile
-from cob.interpreter.thread import CobThread
-from cob.interpreter.types_ import ThreadCallbackType
+from cob_compiler.cob_file import CobFile
+from cob_runtime.interpreter.thread import CobThread
+from cob_runtime.interpreter.types_ import ThreadCallbackType
 from script_hook_function import ScriptHookFunction
 from animation_engine.math import uint32, MAX_COB_ARGS, float3
 from animation_engine.data_types import (

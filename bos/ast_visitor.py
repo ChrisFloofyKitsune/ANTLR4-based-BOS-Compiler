@@ -2,14 +2,14 @@ import operator
 import warnings
 from functools import singledispatchmethod, reduce
 from types import NoneType
-from typing import Any, ClassVar
+from typing import Any, ClassVar, TypeVar, Type
 
 import tree_sitter
 import tree_sitter_bos
 
 from bos import ast_nodes
 from bos.ast_nodes import preproc_nodes
-from value_dispatch import ValueDispatch
+from util.value_dispatch import ValueDispatch
 
 _bos_lang = tree_sitter.Language(tree_sitter_bos.language())
 
@@ -25,6 +25,20 @@ class TreeSitterBosVisitor:
         for supertype, subtypes in super_to_subtype_map.items()
         for subtype in subtypes
     }
+
+    @classmethod
+    def _resolve_supertype_handler(cls, node_type: str) -> str:
+        """
+        If a node type does not have a registered handler,
+        resolve the nearest supertype that has a registered handler in the visitor.
+        """
+        while (
+            node_type not in cls._visit_node_type.dispatch_table
+            and node_type in cls.sub_to_supertype_map
+        ):
+            node_type = cls.sub_to_supertype_map[node_type]
+
+        return node_type
 
     keyword_map = {
         'call-script': ast_nodes.Keyword.CALL_SCRIPT,
@@ -84,6 +98,9 @@ class TreeSitterBosVisitor:
         '<=': ast_nodes.ExpressionOperator.COMP_LESS_EQUAL,
     }
 
+
+
+
     def visit(self, obj):
         try:
             return self._visit(obj)
@@ -94,6 +111,15 @@ class TreeSitterBosVisitor:
             if note not in getattr(e, "__notes__", []):
                 e.add_note(repr(obj))
             raise
+
+    ASTNodeSubtype = TypeVar('ASTNodeSubtype', bound=ast_nodes.ASTNode)
+
+    def visit_guarded(self, obj, expected_type: Type[ASTNodeSubtype]) -> ASTNodeSubtype:
+        result = self.visit(obj)
+        if not isinstance(result, expected_type):
+            raise TypeError(f'Expected node of type {expected_type.__name__}, got {type(result).__name__}')
+        return result
+
 
     @singledispatchmethod
     def _visit(self, obj: Any) -> ast_nodes.ASTNode | list[ast_nodes.ASTNode]:
@@ -114,13 +140,8 @@ class TreeSitterBosVisitor:
 
     @_visit.register
     def _visit_node(self, node: tree_sitter.Node):
-        target_type = node.type
-        while (
-                target_type not in self._visit_node_type.dispatch_table
-                and target_type in self.sub_to_supertype_map
-                and self.sub_to_supertype_map[target_type] in self._visit_node_type.dispatch_table
-        ):
-            target_type = self.sub_to_supertype_map[target_type]
+        # delegate supertype fallback resolution to the classmethod
+        target_type = type(self)._resolve_supertype_handler(node.type)
 
         return self.visit_node_type(target_type, node)
 
@@ -193,9 +214,9 @@ class TreeSitterBosVisitor:
         args_nodes = node.children_by_field_name('arg')
 
         return ast_nodes.FuncDeclaration(
-            name=self.visit(name_node),
+            name=self.visit_guarded(name_node, ast_nodes.FuncName),
             args=[ast_nodes.ArgName(name=arg.text.decode('utf-8'), parser_node=arg) for arg in args_nodes],
-            block=self.visit(node.child_by_field_name('body')),
+            block=self.visit_guarded(node.child_by_field_name('body'), ast_nodes.StatementBlock),
             parser_node=node
         )
 
@@ -278,10 +299,6 @@ class TreeSitterBosVisitor:
             right=right,
             parser_node=node
         )
-
-    def _get_binary_expr_parts(self, node):
-        left = self.visit(node.child_by_field_name('left'))
-        return left
 
     @_visit_node_type.register('source_file')
     def _visit_source_file(self, node: tree_sitter.Node):
@@ -617,14 +634,13 @@ class TreeSitterBosVisitor:
 if __name__ == '__main__':
     def main():
         # check all nodes in the tree-sitter bos grammar
-        visitor = TreeSitterBosVisitor()
         has_handler = set()
         no_handler = set()
         for node_kind_id in range(_bos_lang.node_kind_count):
             node_type = _bos_lang.node_kind_for_id(node_kind_id)
             if not _bos_lang.node_kind_is_visible(node_kind_id) or not _bos_lang.node_kind_is_named(node_kind_id):
                 continue
-            if node_type in visitor._visit_node_type.dispatch_table:
+            if node_type in TreeSitterBosVisitor._visit_node_type.dispatch_table:
                 has_handler.add(node_type)
             else:
                 no_handler.add(node_type)
@@ -632,8 +648,8 @@ if __name__ == '__main__':
         for node_type in sorted(has_handler):
             print(node_type)
 
-        print(f'\n\nNodes without handlers: {len(no_handler)}')
+        print(f'\n\nNodes without direct handlers: {len(no_handler)}')
         for node_type in sorted(no_handler):
-            print(node_type)
+            print(node_type, TreeSitterBosVisitor.sub_to_supertype_map.get(node_type), TreeSitterBosVisitor._resolve_supertype_handler(node_type))
 
     main()

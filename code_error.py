@@ -8,3 +8,8 @@ class CodeError(Exception):
         super().__init__(message, error_loc)
         self.message = message
         self.error_loc = error_loc
+
+    def __str__(self):
+        if self.error_loc:
+            return f"\n  {self.error_loc}\n    {self.message}"
+        return self.message

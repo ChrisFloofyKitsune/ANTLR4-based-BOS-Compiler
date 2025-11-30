@@ -10,7 +10,7 @@ There are spec-enforcing validators (all end with `_gltf_spec`).
 
 Additional properties are allowed for all Pydantic models (per the spec).
 
-GLTFBase and GLTFNamed are base classes that are implied by the spec (and kinda exist in their JSON Schema anyway).
+GLTFBase and GLTFNamed are base classes that are implied by the spec (and exist in their JSON Schema anyway).
 
 (DDS textures have been added to the default supported image formats since projects I want to work on use it)
 

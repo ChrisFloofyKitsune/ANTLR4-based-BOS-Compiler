@@ -1,3 +1,5 @@
+import pathlib
+import sys
 from typing import Self, NamedTuple
 
 from tree_sitter import Node as TSNode
@@ -34,6 +36,16 @@ class CodeLocation(NamedTuple):
 
         return cls(source_file, start_line + line_offset, start_column, end_line + line_offset, end_column)
 
+    def __str__(self) -> str:
+
+
+        return f'File "{str(pathlib.Path(self.source_file).absolute())}" line {self.start_line}'
+
+    def __repr__(self) -> str:
+        return (
+            f"CodeLocation(source_file={self.source_file!r}, start_line={self.start_line}, "
+            f"start_column={self.start_column}, end_line={self.end_line}, end_column={self.end_column})"
+        )
 
 if __name__ == "__main__":
     def main():

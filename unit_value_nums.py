@@ -108,4 +108,4 @@ class UnitValue(IntEnum):
 
 
 if __name__ == '__main__':
-    print([v.name for v in UnitValue])
+    print('\n'.join([v.name for v in UnitValue]))

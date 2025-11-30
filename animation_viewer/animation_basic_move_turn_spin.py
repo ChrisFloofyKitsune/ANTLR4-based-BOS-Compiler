@@ -7,6 +7,8 @@ from moderngl_window.geometry import AttributeNames
 from moderngl_window.scene import Node, Mesh, Material
 from pyglet.gl import GL_FLOAT
 
+import gltf.pydantic_models.meta
+import gltf.pydantic_models.node
 from animation_viewer.fixed_update_window import FixedUpdateWindow
 from animation_engine import anim_functions
 from animation_engine.fixed_tick_runner import FixedUpdateTicker
@@ -34,7 +36,7 @@ class BasicAnimationsWindow(FixedUpdateWindow):
         super().__init__(**kwargs)
         self.wnd.title = "Basic Animations"
 
-        self.scene = mgw.scene.Scene("anim_research_scene")
+        self.scene = gltf.pydantic_models.node.Scene("anim_research_scene")
 
         def make_cube(name, color):
             node = Node(

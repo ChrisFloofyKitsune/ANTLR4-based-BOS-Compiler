@@ -79,17 +79,18 @@ class Constant(ValueNode):
         if int_value > 0xFFFF_FFFF or int_value < -0x8000_0000:
             raise CodeError(
                 f'{"Overflow" if int_value > 0 else "Underflow"} error compiling constant {self.model_dump()}. '
-                f'Computed value (int_value) cannot fit inside a 32bit int',
-                CodeLocation.from_parser_node(self.parser_node)
+                f'Computed value (int_value) cannot fit inside 32 bits',
+                CodeLocation.from_node(self.parser_node)
             )
 
-        # force large unsigned ints to fit
+        # In order to preserve the bits of the value, we need to convert
+        # what would be unsigned ints into their signed int equivalents
         if int_value > 0x7FFF_FFFF:
             int_value -= 0x1_0000_0000
             if isinstance(self.base_value, float):
                 print(
                     f'[WARNING] Converted float from {self.model_dump()} (computed: {number_value}) to very large negative int {int_value}',
-                    CodeLocation.from_parser_node(self.parser_node)
+                    CodeLocation.from_node(self.parser_node)
                 )
 
         return int_value

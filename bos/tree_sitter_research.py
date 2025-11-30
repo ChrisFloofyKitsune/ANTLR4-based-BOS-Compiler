@@ -12,7 +12,7 @@ import tree_sitter_bos
 from bos.bos_loader import BosLoader
 from bos.bos_preprocessor import BosPreprocessor
 from bos.ast_visitor import TreeSitterBosVisitor
-from cob.compiler.cob_compiler import CobCompiler
+from cob_compiler.cob_compiler import CobCompiler
 from code_error import CodeError
 
 
@@ -193,8 +193,8 @@ def main3():
         try:
             compiler = CobCompiler()
             new_bytes = compiler.compile_file_ast(ast_node_tree).to_bytes()
-            Path('../bos_tree_sitter/compiled').mkdir(exist_ok=True)
-            with open(Path('../bos_tree_sitter/compiled').joinpath(file.name).with_suffix('.cob'), 'wb') as f:
+            Path('../bos/compiled').mkdir(exist_ok=True)
+            with open(Path('../bos/compiled').joinpath(file.name).with_suffix('.cob'), 'wb') as f:
                 f.write(new_bytes)
         except CodeError:
             print('file failed to compile :(')

@@ -1,3 +1,10 @@
+"""
+Base classes and shared definitions for glTF 2.0 pydantic models.
+
+Defines common base models :class:`GLTFBase`, :class:`GLTFNamed` and
+convenience type aliases for :data:`Extension` and :data:`Extras`.
+"""
+
 from __future__ import annotations
 
 import warnings
@@ -5,10 +12,11 @@ from typing import Optional
 
 from pydantic import BaseModel, JsonValue, ConfigDict, field_validator
 from pydantic.alias_generators import to_camel
+from typing_extensions import TypeAliasType
 
 from gltf.pydantic_models.validation_errors import GLTFSpecWarning
 
-Extension = dict[str, JsonValue]
+Extension = TypeAliasType('Extension', dict[str, JsonValue])
 """
 JSON object with extension-specific objects.
 
@@ -17,7 +25,7 @@ Additional properties are allowed.
 Spec: https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#reference-extension
 """
 
-Extras = JsonValue
+Extras = TypeAliasType('Extras', JsonValue)
 """
 Application-specific data.
 

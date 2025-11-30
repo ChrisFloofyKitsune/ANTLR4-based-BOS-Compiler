@@ -1,17 +1,8 @@
-from pydantic import model_serializer
-
-from bos.ast_nodes.base_nodes import ASTNode, ValueNode
+from bos.ast_nodes.base_nodes import ValueNode
 
 
 class NameNode(ValueNode):
     name: str
-
-    def get_value(self):
-        return self.name
-
-    @model_serializer()
-    def serialize(self) -> str:
-        return f'{self.node_name}(\'{self.name}\')'
 
     def __eq__(self, other):
         return isinstance(other, NameNode) and self.name.lower() == other.name.lower()

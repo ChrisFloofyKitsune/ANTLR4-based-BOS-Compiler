@@ -1,13 +1,20 @@
+"""
+Enumeration of the special constants used in the glTF 2.0 spec.
+
+See :obj:`gltf.pydantic_models.GLConstant`.
+"""
+
 from __future__ import annotations
 
 from enum import IntEnum
 
 
 class GLConstant(IntEnum):
-    """
-    Enum of OpenGL constants used in the glTF spec
+    """Enum of OpenGL constants used in the glTF specification.
 
-    see: https://developer.mozilla.org/en-US/docs/Web/API/WebGL_API/Constants
+    .. seealso::
+       - WebGL constants documentation: https://developer.mozilla.org/en-US/docs/Web/API/WebGL_API/Constants
+       - GL constants lookup/translator: https://javagl.github.io/GLConstantsTranslator/GLConstantsTranslator.html
     """
 
     POINTS = 0x0

@@ -6,9 +6,9 @@ from collections.abc import Iterator
 from queue import PriorityQueue
 from typing import NamedTuple, cast
 
-from cob.interpreter.instance import CobInstance
-from cob.interpreter.thread import CobThread
-from cob.interpreter.types_ import ThreadId
+from cob_runtime.interpreter.instance import CobInstance
+from cob_runtime.interpreter.thread import CobThread
+from cob_runtime.interpreter.types_ import ThreadId
 from animation_engine.exceptions import AnimationEngineError
 
 LOG = logging.getLogger(__name__)

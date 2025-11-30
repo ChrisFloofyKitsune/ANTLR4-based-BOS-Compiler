@@ -1,11 +1,22 @@
+"""Pydantic models for the core glTF 2.0 data containers.
+
+Defines :class:`Accessor`, :class:`Buffer`, and :class:`BufferView`,
+which describe the typing and structure of the binary data in a glTF
+asset.
+
+Notes
+-----
+The fields on the data container types can generally be fed directly
+into OpenGL attribute/buffer binding functions.
+"""
+
 from __future__ import annotations
 
 from typing import Optional, Literal, ClassVar, Annotated
 
 from pydantic import Field, field_validator, model_validator
-from pydantic_core.core_schema import ValidationInfo
 
-from gltf.pydantic_models.annotation import IndexRef
+from util.index_ref import IndexRef
 from gltf.pydantic_models.base_definitions import GLTFNamed, GLTFBase
 from gltf.pydantic_models.gl_constant import GLConstant
 from gltf.pydantic_models.validation_errors import GLTFSpecError
@@ -18,7 +29,7 @@ class Accessor(GLTFNamed):
     Spec: https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#reference-accessor
     """
 
-    buffer_view: Annotated[Optional[int], Field(ge=0, default=None), IndexRef('BufferView')]
+    buffer_view: Annotated[Optional[int], Field(ge=0, default=None), IndexRef[BufferView]]
     """
     The index of the buffer view. 
     
@@ -126,7 +137,7 @@ class Accessor(GLTFNamed):
         GLConstant.FLOAT: 4,
     }
 
-    _TYPE_COMPONENTS: ClassVar[dict[str, int]] = {
+    _TYPE_ELEMENT_COUNT: ClassVar[dict[str, int]] = {
         'SCALAR': 1,
         'VEC2': 2,
         'VEC3': 3,
@@ -136,64 +147,49 @@ class Accessor(GLTFNamed):
         'MAT4': 16,
     }
 
-    @field_validator('byte_offset')
-    @classmethod
-    def _validate_byte_offset_alignment_gltf_spec(cls, v: int, info: ValidationInfo):
-        component_type = info.data.get('component_type')
-        if component_type is None:
-            return v
-        size = cls._COMPONENT_TYPE_SIZE.get(component_type)
-        if size and v % size != 0:
+    @model_validator(mode='after')
+    def _validate_byte_offset_alignment_gltf_spec(self):
+        size = self._COMPONENT_TYPE_SIZE[self.component_type]
+        if self.byte_offset % size:
             raise GLTFSpecError(
-                f'GLTF Spec: byteOffset ({v}) must be a multiple of componentType byte length ({size}).'
+                f'GLTF Spec: byteOffset ({self.component_type}) must be a multiple of componentType byte length ({size}).'
             )
-        return v
+        return self
 
-    @field_validator('normalized')
-    @classmethod
-    def _validate_normalized_with_type_gltf_spec(cls, v: bool, info: ValidationInfo):
-        component_type = info.data.get('component_type')
-        if v and component_type in (GLConstant.FLOAT, GLConstant.UNSIGNED_INT):
+    @model_validator(mode='after')
+    def _validate_normalized_with_type_gltf_spec(self):
+        if self.normalized and self.component_type in (GLConstant.FLOAT, GLConstant.UNSIGNED_INT):
             raise GLTFSpecError('GLTF Spec: normalized MUST NOT be true for FLOAT or UNSIGNED_INT component types.')
-        return v
+        return self
 
-    @field_validator('max')
-    @classmethod
-    def _validate_max_len_gltf_spec(cls, v: Optional[list[float]], info: ValidationInfo):
-        if v is None:
-            return v
-        type_ = info.data.get('type')
-        if type_ is None:
-            return v
-        expected = cls._TYPE_COMPONENTS.get(type_)
-        if expected and len(v) != expected:
-            raise GLTFSpecError(
-                f'GLTF Spec: max array length must match component count for type {type_} (expected {expected}).'
-                )
-        return v
+    @model_validator(mode='after')
+    def _validate_max_len_gltf_spec(self):
+        return self._validate_max_min_len_gltf_spec('max')
 
-    @field_validator('min')
-    @classmethod
-    def _validate_min_len_gltf_spec(cls, v: Optional[list[float]], info: ValidationInfo):
-        if v is None:
-            return v
-        type_ = info.data.get('type')
-        if type_ is None:
-            return v
-        expected = cls._TYPE_COMPONENTS.get(type_)
-        if expected and len(v) != expected:
+    @model_validator(mode='after')
+    def _validate_min_len_gltf_spec(self):
+        return self._validate_max_min_len_gltf_spec('min')
+
+    def _validate_max_min_len_gltf_spec(self, field_name: str):
+        array_val = getattr(self, field_name)
+        if array_val is None:
+            return self
+
+        type_ = self.type
+        expected = self._TYPE_ELEMENT_COUNT[type_]
+        if len(array_val) != expected:
             raise GLTFSpecError(
-                f'GLTF Spec: min array length must match component count for type {type_} (expected {expected}).'
-                )
-        return v
+                f'GLTF Spec: {field_name} array length must match component count for type {type_} (expected {expected}).'
+            )
+
+        return self
 
     @model_validator(mode='after')
     def _validate_no_offset_without_bufferview_gltf_spec(self):
-        # If bufferView is not defined, byteOffset must be 0 per spec
         if self.buffer_view is None and self.byte_offset not in (0, None):
             raise GLTFSpecError(
                 'GLTF Spec: accessor.byteOffset MUST NOT be defined when bufferView is undefined (must be 0).'
-                )
+            )
         return self
 
     class Sparse(GLTFBase):
@@ -229,7 +225,7 @@ class Accessor(GLTFNamed):
             Spec: https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#reference-accessor-sparse-indices
             """
 
-            buffer_view: Annotated[int, Field(ge=0), IndexRef('BufferView')]
+            buffer_view: Annotated[int, Field(ge=0), IndexRef[BufferView]]
             """
             The index of the buffer view with sparse indices.
             
@@ -259,7 +255,7 @@ class Accessor(GLTFNamed):
             Spec: https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#reference-accessor-sparse-values
             """
 
-            buffer_view: Annotated[int, Field(ge=0), IndexRef('BufferView')]
+            buffer_view: Annotated[int, Field(ge=0), IndexRef[BufferView]]
             """
             The index of the bufferView with sparse values.
             
@@ -297,7 +293,7 @@ class BufferView(GLTFNamed):
     Spec: https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#reference-bufferview
     """
 
-    buffer: Annotated[int, Field(ge=0), IndexRef('Buffer')]
+    buffer: Annotated[int, Field(ge=0), IndexRef[Buffer]]
     """The index of the buffer."""
 
     byte_offset: int = Field(default=0, ge=0)
