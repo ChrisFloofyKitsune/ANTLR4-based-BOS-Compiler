@@ -37,9 +37,6 @@ class Declaration(TopLevelNode, ABC):
 class PieceDeclaration(Declaration):
     names: list[PieceName]
 
-    def get_value(self):
-        return self.names
-
     def __iter__(self) -> Generator[PieceName, None, None]:
         yield from self.names
 
@@ -55,6 +52,3 @@ class FuncDeclaration(Declaration):
     name: FuncName
     args: list[ArgName]
     block: StatementBlock
-
-    def get_value(self):
-        return SimpleNamespace(name=self.name, args=self.args, block=self.block)

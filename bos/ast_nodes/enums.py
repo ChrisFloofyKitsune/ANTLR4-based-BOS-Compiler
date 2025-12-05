@@ -20,10 +20,10 @@ class ExpressionOperator(StrEnum):
     BITWISE_OR = '|', lambda a, b: (int(a) | int(b)) & 0xFFFFFFFF
     BITWISE_XOR = '^', lambda a, b: (int(a) ^ int(b)) & 0xFFFFFFFF
 
-    LOGICAL_AND = '&&', lambda a, b: operator.truth(a) and operator.truth(b)
-    LOGICAL_OR = '||', lambda a, b: operator.truth(a) or operator.truth(b)
-    LOGICAL_XOR = '^^', lambda a, b: operator.truth(a) != operator.truth(b)
-    LOGICAL_NOT = '!', lambda a: not operator.truth(a)
+    LOGICAL_AND = '&&', lambda a, b: bool(a) and bool(b)
+    LOGICAL_OR = '||', lambda a, b: bool(a) or bool(b)
+    LOGICAL_XOR = '^^', lambda a, b: bool(a) != bool(b)
+    LOGICAL_NOT = '!', lambda a: not bool(a)
 
     def eval(self, *args):
         return self._eval_func(*args)
@@ -70,7 +70,7 @@ class Keyword(StrEnum):
     RETURN = 'return'
     CACHE = 'cache'
     DONT_CACHE = 'dont-cache'
-    DONT_SHADOW = 'dont-shade'
+    SHADE = 'shade'
     DONT_SHADE = 'dont-shade'
     PLAY_SOUND = 'play-sound'
 

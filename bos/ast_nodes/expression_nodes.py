@@ -14,17 +14,11 @@ class UnaryExpression(Expression):
     op: ExpressionOperator
     operand: ValueNode
 
-    def get_value(self):
-        return SimpleNamespace(op=self.op, operand=self.operand)
-
 
 class BinaryExpression(Expression):
     left: ValueNode
     op: ExpressionOperator
     right: ValueNode
-
-    def get_value(self):
-        return SimpleNamespace(operand1=self.left, op=self.op, operand2=self.right)
 
 class MacroCallExpression(PreprocCallExpression, Expression):
     ...

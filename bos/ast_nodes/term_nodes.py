@@ -1,13 +1,12 @@
 import contextlib
 from abc import ABC
-from types import SimpleNamespace
-from typing import ClassVar, Literal, Any
+from typing import ClassVar, Literal
 
 from pydantic import model_serializer
 
-from bos.ast_nodes.name_nodes import VarName
 from bos.ast_nodes.base_nodes import ValueNode
 from bos.ast_nodes.enums import AxisEnum
+from bos.ast_nodes.name_nodes import VarName
 from code_error import CodeError
 from code_location import CodeLocation
 
@@ -20,12 +19,12 @@ class Constant(ValueNode):
     const_type: Literal['normal', 'angular', 'linear'] = 'normal'
 
     def __init__(
-            self,
-            /,
-            value: float | int | str,
-            *,
-            const_type: Literal['normal', 'angular', 'linear'] = None,
-            **kwargs
+        self,
+        /,
+        value: float | int | str,
+        *,
+        const_type: Literal['normal', 'angular', 'linear'] = None,
+        **kwargs,
     ):
         if isinstance(value, str):
             if const_type is None:
@@ -62,7 +61,7 @@ class Constant(ValueNode):
             raise CodeError(
                 f'Error compiling constant {self.model_dump()}. '
                 f'Likely an un-replaced macro? (value: {self.base_value})',
-                CodeLocation.from_node(self.parser_node)
+                CodeLocation.from_node(self.parser_node),
             )
 
         match self.const_type:
@@ -80,7 +79,7 @@ class Constant(ValueNode):
             raise CodeError(
                 f'{"Overflow" if int_value > 0 else "Underflow"} error compiling constant {self.model_dump()}. '
                 f'Computed value (int_value) cannot fit inside 32 bits',
-                CodeLocation.from_node(self.parser_node)
+                CodeLocation.from_node(self.parser_node),
             )
 
         # In order to preserve the bits of the value, we need to convert
@@ -90,16 +89,13 @@ class Constant(ValueNode):
             if isinstance(self.base_value, float):
                 print(
                     f'[WARNING] Converted float from {self.model_dump()} (computed: {number_value}) to very large negative int {int_value}',
-                    CodeLocation.from_node(self.parser_node)
+                    CodeLocation.from_node(self.parser_node),
                 )
 
         return int_value
 
-    def get_value(self):
-        return self.base_value, self.const_type
-
     @model_serializer()
-    def serialize(self) -> str:
+    def serialize(self, _) -> str:
         return repr(self)
 
 
@@ -110,56 +106,36 @@ class VaryingTerm(ValueNode, ABC):
 class GetTerm(VaryingTerm):
     get_call: 'GetCall'
 
-    def get_value(self):
-        return self.get_call
-
 
 class GetCall(ValueNode):
     value_idx: ValueNode
     args: list[ValueNode | None]
 
-    def get_value(self) -> Any:
-        args = [a for a in self.args if a]
-        if len(args) == 0:
-            return SimpleNamespace(value_idx=self.value_idx)
-
-        return SimpleNamespace(value_idx=self.value_idx, args=args)
 
 class VarNameTerm(VaryingTerm):
     var_name: VarName
 
-    def get_value(self):
-        return self.var_name
-
     @model_serializer()
-    def serialize(self) -> str:
+    def serialize(self, _) -> str:
         return f'{self.node_name}({repr(self.var_name)})'
+
 
 class RandTerm(VaryingTerm):
     min: ValueNode
     max: ValueNode
 
-    def get_value(self):
-        return SimpleNamespace(min=self.min, max=self.max)
-
 
 class Axis(ValueNode):
     axis: AxisEnum
 
-    def get_value(self):
-        return self.axis
-
     @model_serializer()
-    def serialize(self) -> str:
+    def serialize(self, _) -> str:
         return f'{self.node_name}({repr(self.axis)})'
 
 
 class StringLiteral(ValueNode):
     string: str
 
-    def get_value(self):
-        return self.string
-
     @model_serializer()
-    def serialize(self) -> str:
+    def serialize(self, _) -> str:
         return f'{self.node_name}({repr(self.string)})'
