@@ -5,7 +5,7 @@ from typing import Self, NamedTuple
 from tree_sitter import Node as TSNode
 
 from bos.ast_nodes import ASTNode
-from ts_util import nearest_previous
+from util.ts_util import nearest_previous
 
 
 class CodeLocation(NamedTuple):
