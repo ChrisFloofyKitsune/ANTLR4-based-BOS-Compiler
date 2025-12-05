@@ -29,8 +29,8 @@ class CobOpCode(IntEnum):
     PUSH_STATIC = 0x10021004, 1, 0
     CREATE_LOCAL_VAR = 0x10022000, 0, 0
     POP_LOCAL_VAR = 0x10023002, 1, 1
-    POP_STATIC = 0x10023004, 1, 0
-    POP_STACK = 0x10024000, 0, 0
+    POP_STATIC = 0x10023004, 1, 1
+    POP_STACK = 0x10024000, 0, 1
 
     ADD = 0x10031000, 0, 2
     SUB = 0x10032000, 0, 2
@@ -145,8 +145,8 @@ class CobOpCode(IntEnum):
                 return CobOpCode.CACHE
             case Keyword.DONT_CACHE:
                 return CobOpCode.DONT_CACHE
-            case Keyword.DONT_SHADOW:
-                return CobOpCode.DONT_SHADE
+            case Keyword.SHADE:
+                return CobOpCode.SHADE
             case Keyword.DONT_SHADE:
                 return CobOpCode.DONT_SHADE
             case Keyword.PLAY_SOUND:
