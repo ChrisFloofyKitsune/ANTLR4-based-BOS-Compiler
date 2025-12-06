@@ -21,21 +21,21 @@ class NodeNameRegistry(NameRegistry[nodes.NameNode]):
     def on_name_missing(self, name):
         raise CodeError(f'name "{str(name)}" has not been defined', CodeLocation.from_node(name.parser_node))
 
-    def on_name_collision(self, name: nodes.NameNode, name_type: NameType, existing_type: NameType):
-        if name_type == existing_type and name_type in (NameType.STATIC_VAR, NameType.PIECE):
-            log.warning(
-                'Skipping duplicate declaration of global name %s "%s". Location: %s',
-                name_type.description,
-                str(name),
-                CodeLocation.from_node(name.parser_node),
-            )
-            return
-
-        raise CodeError(
-            f'invalid declaration of {name_type.description} "{str(name)}", '
-            f"name is already being used by a {existing_type.description} declaration",
-            CodeLocation.from_node(name.parser_node),
-        )
+    # def on_name_collision(self, name: nodes.NameNode, name_type: NameType, existing_type: NameType):
+    #     if name_type == existing_type and name_type in (NameType.STATIC_VAR, NameType.PIECE):
+    #         log.warning(
+    #             'Skipping duplicate declaration of global name %s "%s". Location: %s',
+    #             name_type.description,
+    #             str(name),
+    #             CodeLocation.from_node(name.parser_node),
+    #         )
+    #         return
+    #
+    #     raise CodeError(
+    #         f'invalid declaration of {name_type.description} "{str(name)}", '
+    #         f"name is already being used by a {existing_type.description} declaration",
+    #         CodeLocation.from_node(name.parser_node),
+    #     )
 
 
 class CobCompiler:
@@ -186,7 +186,7 @@ class CobCompiler:
         immediate_vals = []
         for arg in immediate_args:
             if isinstance(arg, nodes.NameNode):
-                immediate_vals.append(self.name_registry.lookup(arg)[0])
+                immediate_vals.append(self.name_registry.lookup(arg).index)
             elif isinstance(arg, nodes.Axis):
                 immediate_vals.append(arg.axis.value)
             else:
@@ -220,7 +220,7 @@ class CobCompiler:
                 f"Expected a function name, got {func_name.node_name}",
                 CodeLocation.from_node(statement.parser_node),
             )
-        self.code.append(self.name_registry.lookup(func_name)[0])
+        self.code.append(self.name_registry.lookup(func_name).index)
         self.code.append(len(statement.args) - 1)
 
     @_handle_node.register
@@ -268,20 +268,20 @@ class CobCompiler:
     @_handle_node.register
     def _handle_node__assign_statement(self, assign_statement: nodes.AssignStatement):
         self.handle_node(assign_statement.expression)
-        idx, name_type = self.name_registry.lookup(assign_statement.variable)
+        name_entry = self.name_registry.lookup(assign_statement.variable)
 
-        match name_type:
+        match name_entry.name_type:
             case NameType.STATIC_VAR:
                 self.code.append(CobOpCode.POP_STATIC)
             case NameType.LOCAL_VAR | NameType.ARGUMENT:
                 self.code.append(CobOpCode.POP_LOCAL_VAR)
             case _:
                 raise CodeError(
-                    f'Illegal assignment to {name_type.description} "{assign_statement.variable.name}".',
+                    f'Illegal assignment to {name_entry.name_type.description} "{assign_statement.variable.name}".',
                     CodeLocation.from_node(assign_statement.parser_node),
                 )
 
-        self.code.append(idx)
+        self.code.append(name_entry.index)
 
     @_handle_node.register
     def _handle_node__return_statement(self, return_statement: nodes.ReturnStatement):
@@ -344,15 +344,15 @@ class CobCompiler:
 
     @_handle_node.register
     def _handle_node__var_name_term(self, term: nodes.VarNameTerm):
-        idx, var_type = self.name_registry.lookup(term.var_name)
-        match var_type:
+        entry = self.name_registry.lookup(term.var_name)
+        match entry.name_type:
             case NameType.STATIC_VAR:
                 self.code.append(CobOpCode.PUSH_STATIC)
             case NameType.LOCAL_VAR | NameType.ARGUMENT:
                 self.code.append(CobOpCode.PUSH_LOCAL_VAR)
             case NameType.PIECE | NameType.FUNCTION:
                 self.code.append(CobOpCode.PUSH_CONSTANT)  # the value to use is literally the index
-        self.code.append(idx)
+        self.code.append(entry.index)
 
     @_handle_node.register
     def _handle_node__rand_term(self, rand: nodes.RandTerm):
